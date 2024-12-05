@@ -24,12 +24,17 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User
 
+# Load environment variables first
+load_dotenv()
+
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
 
 # Set up configurations
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key')
+if not os.getenv('SECRET_KEY'):
+    print("Warning: SECRET_KEY not found in environment variables")
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(24).hex())
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -41,13 +46,16 @@ login_manager.login_view = 'login'
 # Initialize database
 db.init_app(app)
 
-# Load environment variables
-load_dotenv()
-
 # API Configuration
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+if not OPENAI_API_KEY:
+    print("Warning: OPENAI_API_KEY not found in environment variables")
+
 OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+if not GEMINI_API_KEY:
+    print("Warning: GEMINI_API_KEY not found in environment variables")
+
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
 # Initialize OpenAI client
@@ -703,6 +711,13 @@ For each question:
    Question: [your question here]
    Answer: [specific answer here]
 
+Example format:
+Question: What is 5 + 7?
+Answer: 12
+
+Question: What is the capital of France?
+Answer: Paris
+
 Please generate exactly {num_questions} questions following this format."""
 
         response = client.chat.completions.create(
@@ -1250,7 +1265,7 @@ Answer: 12
 Question: What is the capital of France?
 Answer: Paris
 
-Please generate {question_count} questions following this exact format."""
+Please generate exactly {question_count} questions following this format."""
 
         # Call Gemini API
         response = requests.post(
