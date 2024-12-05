@@ -33,6 +33,13 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
+# Set up template and static directories
+app.template_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
+app.static_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+
+print(f"Template directory: {app.template_folder}")
+print(f"Static directory: {app.static_folder}")
+
 # Set up configurations
 if os.environ.get('FLASK_ENV') == 'production':
     app.config.update(
@@ -187,12 +194,6 @@ def get_cache_key(data):
 # Set console encoding to UTF-8
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
-
-# Initialize template and static folders
-template_dir = 'c:/Users/info/Desktop/ai_tutor-20241203T025709Z-001/ai_tutor/templates'
-static_dir = 'c:/Users/info/Desktop/ai_tutor-20241203T025709Z-001/ai_tutor/static'
-app.template_folder = template_dir
-app.static_folder = static_dir
 
 @login_manager.user_loader
 def load_user(user_id):
