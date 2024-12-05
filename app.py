@@ -23,6 +23,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User
+from urllib.parse import url_parse
 
 # Load environment variables first
 load_dotenv()
@@ -32,10 +33,24 @@ app = Flask(__name__)
 CORS(app)
 
 # Set up configurations
+if os.environ.get('FLASK_ENV') == 'production':
+    app.config.update(
+        SESSION_COOKIE_SECURE=True,
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE='Lax',
+        PERMANENT_SESSION_LIFETIME=timedelta(minutes=60)
+    )
+    
+# Database configuration
+if os.environ.get('DATABASE_URL'):
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+
+# Set up secret key
 if not os.getenv('SECRET_KEY'):
     print("Warning: SECRET_KEY not found in environment variables")
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(24).hex())
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize login manager
@@ -44,17 +59,28 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # Initialize database
-db.init_app(app)
+with app.app_context():
+    db.init_app(app)
+    try:
+        db.create_all()
+        print("Database tables created successfully")
+    except Exception as e:
+        print(f"Error creating database tables: {str(e)}")
 
 # API Configuration
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 if not OPENAI_API_KEY:
-    print("Warning: OPENAI_API_KEY not found in environment variables")
+    print("ERROR: OPENAI_API_KEY not found in environment variables")
+else:
+    print("OpenAI API key found")
 
 try:
     client = OpenAI(api_key=OPENAI_API_KEY)
+    # Test the API key
+    client.models.list()
+    print("OpenAI API connection successful")
 except Exception as e:
-    print(f"Error initializing OpenAI client: {str(e)}")
+    print(f"ERROR initializing OpenAI client: {str(e)}")
     client = None
 
 OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
@@ -154,9 +180,6 @@ template_dir = 'c:/Users/info/Desktop/ai_tutor-20241203T025709Z-001/ai_tutor/tem
 static_dir = 'c:/Users/info/Desktop/ai_tutor-20241203T025709Z-001/ai_tutor/static'
 app.template_folder = template_dir
 app.static_folder = static_dir
-
-with app.app_context():
-    db.create_all()
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -1483,40 +1506,66 @@ def practice_test():
 # Authentication routes
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        user = User.query.filter_by(email=email).first()
-        if user and user.check_password(password):
-            login_user(user)
-            return redirect(url_for('dashboard'))
-        flash('Invalid email or password')
-    return render_template('login.html')
+    try:
+        if request.method == 'POST':
+            email = request.form.get('email')
+            password = request.form.get('password')
+            
+            if not email or not password:
+                flash('Please provide both email and password', 'error')
+                return render_template('login.html')
+            
+            try:
+                user = User.query.filter_by(email=email).first()
+                if user and check_password_hash(user.password, password):
+                    login_user(user)
+                    next_page = request.args.get('next')
+                    if not next_page or url_parse(next_page).netloc != '':
+                        next_page = url_for('dashboard')
+                    return redirect(next_page)
+                else:
+                    flash('Invalid email or password', 'error')
+            except Exception as e:
+                print(f"Database error during login: {str(e)}")
+                flash('An error occurred while accessing the database. Please try again.', 'error')
+                
+        return render_template('login.html')
+    except Exception as e:
+        print(f"Unexpected error in login route: {str(e)}")
+        return render_template('error.html', error="An unexpected error occurred. Please try again later.")
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
-    if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm-password')
-        
-        if password != confirm_password:
-            flash('Passwords do not match', 'error')
-            return redirect(url_for('signup'))
-        
-        if User.query.filter_by(email=email).first():
-            flash('Email already exists', 'error')
-            return redirect(url_for('signup'))
-        
-        hashed_password = generate_password_hash(password)
-        new_user = User(email=email, password=hashed_password)
-        db.session.add(new_user)
-        db.session.commit()
-        
-        flash('Account created successfully! Please login.', 'success')
-        return redirect(url_for('login'))
-    
-    return render_template('signup.html')
+    try:
+        if request.method == 'POST':
+            email = request.form.get('email')
+            password = request.form.get('password')
+            
+            if not email or not password:
+                flash('Please provide both email and password', 'error')
+                return render_template('signup.html')
+            
+            try:
+                if User.query.filter_by(email=email).first():
+                    flash('Email already registered', 'error')
+                    return render_template('signup.html')
+                
+                hashed_password = generate_password_hash(password)
+                new_user = User(email=email, password=hashed_password)
+                db.session.add(new_user)
+                db.session.commit()
+                
+                flash('Registration successful! Please login.', 'success')
+                return redirect(url_for('login'))
+            except Exception as e:
+                db.session.rollback()
+                print(f"Database error during signup: {str(e)}")
+                flash('An error occurred while creating your account. Please try again.', 'error')
+                
+        return render_template('signup.html')
+    except Exception as e:
+        print(f"Unexpected error in signup route: {str(e)}")
+        return render_template('error.html', error="An unexpected error occurred. Please try again later.")
 
 @app.route('/logout')
 @login_required
