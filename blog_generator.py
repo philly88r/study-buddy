@@ -108,13 +108,13 @@ class BlogGenerator:
     def generate_image(self, prompt: str) -> str:
         """Generate an image using fal.ai API."""
         headers = {
-            "Authorization": f"Key {self.fal_api_key}",
+            "Authorization": self.fal_api_key,  
             "Content-Type": "application/json"
         }
         
         data = {
             "prompt": prompt,
-            "image_size": "768x768"  # Adjust size as needed
+            "image_size": "768x768"  
         }
         
         response = requests.post(
