@@ -23,7 +23,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User
-from urllib.parse import url_parse
+from urllib.parse import urlparse
+from datetime import timedelta
 
 # Load environment variables first
 load_dotenv()
@@ -1520,7 +1521,7 @@ def login():
                 if user and check_password_hash(user.password, password):
                     login_user(user)
                     next_page = request.args.get('next')
-                    if not next_page or url_parse(next_page).netloc != '':
+                    if not next_page or urlparse(next_page).netloc != '':
                         next_page = url_for('dashboard')
                     return redirect(next_page)
                 else:
