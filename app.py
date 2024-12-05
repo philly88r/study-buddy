@@ -42,16 +42,17 @@ print(f"Template directory: {app.template_folder}")
 print(f"Static directory: {app.static_folder}")
 
 # Set up configurations
+secret_key = get_or_generate_secret_key()
 if os.environ.get('FLASK_ENV') == 'production':
     app.config.update(
-        SECRET_KEY=get_or_generate_secret_key(),
+        SECRET_KEY=secret_key,
         SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL', '').replace('postgres://', 'postgresql://'),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         PERMANENT_SESSION_LIFETIME=timedelta(minutes=60)
     )
 else:
     app.config.update(
-        SECRET_KEY=get_or_generate_secret_key(),
+        SECRET_KEY=secret_key,
         SQLALCHEMY_DATABASE_URI='sqlite:///app.db',
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         PERMANENT_SESSION_LIFETIME=timedelta(minutes=60)
@@ -68,17 +69,19 @@ def generate_secure_key():
         # Fallback to os.urandom
         return os.urandom(32).hex()
 
-# Set up secret key
-secret_key = os.getenv('SECRET_KEY')
-if not secret_key:
-    secret_key = generate_secure_key()
-    print("Notice: Using generated SECRET_KEY for this session")
-app.config['SECRET_KEY'] = secret_key
+def get_or_generate_secret_key():
+    """Get the secret key from environment or generate a new one."""
+    secret_key = os.environ.get('SECRET_KEY')
+    if not secret_key:
+        # Generate a secure random string
+        secret_key = secrets.token_hex(32)
+        print("Notice: Generated new SECRET_KEY")
+    return secret_key
 
 # Initialize login manager
 login_manager = LoginManager()
-login_manager.init_app(app)
 login_manager.login_view = 'login'
+login_manager.init_app(app)
 
 # Initialize database
 def create_tables():
@@ -92,7 +95,6 @@ def create_tables():
 
 # Initialize extensions
 db.init_app(app)
-login_manager.init_app(app)
 
 # Create database tables
 create_tables()
