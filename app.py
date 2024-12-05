@@ -22,7 +22,7 @@ from openai import OpenAI
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User
+from models import db, User, BlogPost
 from urllib.parse import urlparse
 from datetime import timedelta
 from blog_generator import BlogGenerator
@@ -1534,9 +1534,27 @@ def generate_blog():
             return jsonify({'error': 'No keywords provided'}), 400
             
         blog_posts = blog_generator.bulk_generate(keywords)
-        return jsonify({'blog_posts': blog_posts})
+        saved_posts = []
+        
+        for post in blog_posts:
+            blog_post = BlogPost(
+                title=post['title'],
+                slug=post['slug'],
+                introduction=post['introduction'],
+                content=post['content'],
+                toc=post['toc']
+            )
+            db.session.add(blog_post)
+            saved_posts.append({
+                'title': post['title'],
+                'slug': post['slug']
+            })
+        
+        db.session.commit()
+        return jsonify({'blog_posts': saved_posts})
     except Exception as e:
         print(f"Error generating blogs: {str(e)}")
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/blog/<slug>')
@@ -1544,19 +1562,22 @@ def view_blog(slug):
     try:
         # In a real application, you would fetch the blog post from a database
         # For now, we'll store it in memory (you should implement proper storage)
+        blog_post = BlogPost.query.filter_by(slug=slug).first_or_404()
         return render_template('blog.html', 
-                             title=blog_post['title'],
-                             introduction=blog_post['introduction'],
-                             content=blog_post['content'],
-                             toc=blog_post['toc'])
+                             title=blog_post.title,
+                             introduction=blog_post.introduction,
+                             content=blog_post.content,
+                             toc=blog_post.toc)
     except Exception as e:
         print(f"Error viewing blog: {str(e)}")
         return render_template('error.html', error="Blog post not found")
 
-@app.route('/blog/manager')
-@login_required
-def blog_manager():
-    return render_template('blog_manager.html')
+@app.route('/blog')
+def blog_list():
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+    blogs = BlogPost.query.order_by(BlogPost.created_at.desc()).paginate(page=page, per_page=per_page)
+    return render_template('blog_list.html', blogs=blogs)
 
 # Initialize blog generator
 blog_generator = BlogGenerator(

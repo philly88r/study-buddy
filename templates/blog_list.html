@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8">Study Tips & Resources</h1>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for blog in blogs.items %}
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div class="p-6">
+                <h2 class="text-xl font-semibold mb-2">
+                    <a href="{{ url_for('view_blog', slug=blog.slug) }}" class="text-indigo-600 hover:text-indigo-800">
+                        {{ blog.title }}
+                    </a>
+                </h2>
+                <div class="text-gray-600 text-sm">
+                    Published {{ blog.created_at.strftime('%B %d, %Y') }}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if blogs.pages > 1 %}
+    <div class="flex justify-center mt-8">
+        <nav class="inline-flex rounded-md shadow">
+            {% if blogs.has_prev %}
+            <a href="{{ url_for('blog_list', page=blogs.prev_num) }}" 
+               class="px-3 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                Previous
+            </a>
+            {% endif %}
+
+            {% for page_num in blogs.iter_pages(left_edge=2, left_current=2, right_current=2, right_edge=2) %}
+                {% if page_num %}
+                    {% if page_num == blogs.page %}
+                    <span class="px-3 py-2 border border-gray-300 bg-indigo-50 text-sm font-medium text-indigo-600">
+                        {{ page_num }}
+                    </span>
+                    {% else %}
+                    <a href="{{ url_for('blog_list', page=page_num) }}" 
+                       class="px-3 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                        {{ page_num }}
+                    </a>
+                    {% endif %}
+                {% else %}
+                <span class="px-3 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                    ...
+                </span>
+                {% endif %}
+            {% endfor %}
+
+            {% if blogs.has_next %}
+            <a href="{{ url_for('blog_list', page=blogs.next_num) }}" 
+               class="px-3 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                Next
+            </a>
+            {% endif %}
+        </nav>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
