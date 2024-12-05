@@ -12,7 +12,6 @@ import sys
 from PIL import Image
 import time
 import threading
-import google.generativeai as genai
 from collections import defaultdict
 from cachetools import TTLCache
 import functools
