@@ -4,6 +4,36 @@
     <title>Homework Checker - AI Tutor</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .error-message {
+            color: #721c24;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .loading-spinner::after {
+            content: '';
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
@@ -33,15 +63,8 @@
             </form>
 
             <!-- Loading Indicator -->
-            <div id="loading" class="hidden mt-4">
-                <div class="flex items-center justify-center">
-                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                    <span class="ml-2 text-gray-600">Analyzing your homework...</span>
-                </div>
-            </div>
-
-            <!-- Error Display -->
-            <div id="error" class="hidden mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded"></div>
+            <div id="loading-spinner" class="loading-spinner"></div>
+            <div id="error-message" class="error-message"></div>
 
             <!-- Results Display -->
             <div id="results" class="hidden mt-8 space-y-6"></div>
@@ -51,9 +74,9 @@
     <script>
         const uploadForm = document.getElementById('uploadForm');
         const fileInput = document.getElementById('file');
-        const loading = document.getElementById('loading');
-        const error = document.getElementById('error');
-        const results = document.getElementById('results');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const errorDiv = document.getElementById('error-message');
+        const resultsDiv = document.getElementById('results');
 
         // Drag and drop functionality
         uploadForm.addEventListener('dragover', (e) => {
@@ -81,7 +104,8 @@
 
         function handleFile(file) {
             if (!file.type.startsWith('image/')) {
-                showError('Please upload an image file');
+                errorDiv.textContent = 'Please upload an image file';
+                errorDiv.style.display = 'block';
                 return;
             }
 
@@ -89,15 +113,20 @@
             formData.append('file', file);
 
             // Show loading state
-            loading.classList.remove('hidden');
-            error.classList.add('hidden');
-            results.classList.add('hidden');
+            loadingSpinner.style.display = 'block';
+            errorDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
 
             fetch('/analyze_homework', {
                 method: 'POST',
-                body: formData
+                body: formData,
+                credentials: 'same-origin'  // Add this line to include authentication cookies
             })
             .then(response => {
+                if (response.status === 401) {
+                    window.location.href = '/login';  // Redirect to login if unauthorized
+                    throw new Error('Please log in to use this feature');
+                }
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
@@ -115,77 +144,41 @@
             })
             .catch(error => {
                 console.error('Error:', error);
-                showError(error.message || 'Failed to analyze homework');
+                errorDiv.textContent = error.message;
+                errorDiv.style.display = 'block';
             })
             .finally(() => {
-                loading.classList.add('hidden');
+                loadingSpinner.style.display = 'none';
             });
         }
 
         function displayResults(data) {
-            results.innerHTML = '';
-            results.classList.remove('hidden');
+            resultsDiv.innerHTML = '';
+            resultsDiv.classList.remove('hidden');
             
             if (!data || !Array.isArray(data)) {
-                showError('Invalid response format');
+                errorDiv.textContent = 'Invalid response format';
+                errorDiv.style.display = 'block';
                 return;
             }
 
+            let resultsHTML = '<h3>Analysis Results:</h3>';
             data.forEach((result, index) => {
-                const resultDiv = document.createElement('div');
-                resultDiv.className = 'bg-white rounded-lg shadow p-6 space-y-4';
-
-                // Question
-                const questionDiv = document.createElement('div');
-                questionDiv.className = 'space-y-2';
-                questionDiv.innerHTML = `
-                    <h3 class="text-lg font-semibold">Problem ${index + 1}</h3>
-                    <p class="text-gray-700">${result.question}</p>
+                resultsHTML += `
+                    <div class="result-item ${result.is_correct ? 'correct' : 'incorrect'}">
+                        <h4>Problem ${index + 1}</h4>
+                        <p><strong>Question:</strong> ${result.question}</p>
+                        <p><strong>Your Answer:</strong> ${result.student_answer}</p>
+                        <p><strong>Status:</strong> ${result.is_correct ? '✓ Correct' : '✗ Incorrect'}</p>
+                        ${!result.is_correct ? `
+                            <p><strong>Correct Answer:</strong> ${result.correct_answer}</p>
+                            <p><strong>Explanation:</strong> ${result.explanation}</p>
+                        ` : ''}
+                    </div>
                 `;
-                resultDiv.appendChild(questionDiv);
-
-                // Answer Status
-                const statusDiv = document.createElement('div');
-                statusDiv.className = 'flex items-center space-x-2';
-                
-                if (result.is_correct) {
-                    // Show checkmark for correct answers
-                    statusDiv.innerHTML = `
-                        <svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                        </svg>
-                        <span class="text-green-500 font-medium">Correct!</span>
-                    `;
-                } else {
-                    // Show explanation only for incorrect answers
-                    statusDiv.innerHTML = `
-                        <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                        <span class="text-red-500 font-medium">Incorrect</span>
-                    `;
-
-                    // Add explanation for incorrect answers
-                    const explanationDiv = document.createElement('div');
-                    explanationDiv.className = 'mt-4 p-4 bg-red-50 rounded-lg';
-                    explanationDiv.innerHTML = `
-                        <p class="text-gray-700"><strong>Your answer:</strong> ${result.student_answer}</p>
-                        <p class="text-gray-700"><strong>Correct answer:</strong> ${result.correct_answer}</p>
-                        <p class="text-gray-700 mt-2"><strong>Explanation:</strong> ${result.explanation}</p>
-                    `;
-                    resultDiv.appendChild(explanationDiv);
-                }
-                
-                resultDiv.appendChild(statusDiv);
-                results.appendChild(resultDiv);
             });
-        }
-
-        function showError(message) {
-            error.textContent = message;
-            error.classList.remove('hidden');
-            loading.classList.add('hidden');
-            results.classList.add('hidden');
+            
+            resultsDiv.innerHTML = resultsHTML;
         }
     </script>
 </body>

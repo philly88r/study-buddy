@@ -51,15 +51,18 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 if not OPENAI_API_KEY:
     print("Warning: OPENAI_API_KEY not found in environment variables")
 
+try:
+    client = OpenAI(api_key=OPENAI_API_KEY)
+except Exception as e:
+    print(f"Error initializing OpenAI client: {str(e)}")
+    client = None
+
 OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 if not GEMINI_API_KEY:
     print("Warning: GEMINI_API_KEY not found in environment variables")
 
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
-
-# Initialize OpenAI client
-client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Rate limiting configuration
 from datetime import datetime, timedelta
@@ -708,7 +711,7 @@ For each question:
 1. The question should be clear and grade-appropriate
 2. Provide a specific, correct answer
 3. Format each question and answer pair as:
-   Question: [your question here]
+   Question: [question here]
    Answer: [specific answer here]
 
 Example format:
@@ -979,13 +982,24 @@ def generate_from_documents():
 @login_required
 def analyze_homework():
     try:
+        print("Starting analyze_homework endpoint")
+        print(f"User: {current_user.id if current_user.is_authenticated else 'Not authenticated'}")
+        
+        if not client:
+            print("OpenAI client not initialized")
+            return jsonify({'error': 'OpenAI service not available. Please check your API key.'}), 503
+        
         if 'file' not in request.files:
+            print("No file in request.files")
+            print(f"Files received: {request.files}")
             return jsonify({'error': 'No file uploaded'}), 400
             
         file = request.files['file']
         if not file or not allowed_file(file.filename):
+            print(f"Invalid file: {file.filename if file else 'No file'}")
             return jsonify({'error': 'Invalid file type'}), 400
 
+        print(f"Processing file: {file.filename}")
         # Read the image file
         image_bytes = file.read()
         
@@ -994,6 +1008,7 @@ def analyze_homework():
         
         # Call GPT-4 Vision to analyze the homework
         try:
+            print("Calling OpenAI API")
             response = client.chat.completions.create(
                 model="gpt-4-vision-preview",
                 messages=[
@@ -1059,65 +1074,70 @@ def generate_flashcards():
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'No file uploaded'}), 400
-        
+            
         file = request.files['file']
-        card_type = request.form.get('cardType', 'exact')  # Get the card type (exact or similar)
+        card_type = request.form.get('type', 'exact')
         
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
 
-        # Read and encode the image
-        image_data = file.read()
-        base64_image = base64.b64encode(image_data).decode('utf-8')
-        
-        # Prepare the system message based on card type
-        if card_type == 'exact':
-            system_message = """You are a helpful AI that creates flashcards from study materials. 
-            Extract EXACTLY the questions and answers that appear in the image. Format them as a JSON array of 
-            {question, answer} pairs. Do not create new questions - only use what's in the image."""
-        else:
-            system_message = """You are a helpful AI that creates flashcards from study materials. 
-            Analyze the content and create 15-20 similar but different questions that test the same concepts. 
-            Make sure the questions are varied and test different aspects of understanding. 
-            Format them as a JSON array of {question, answer} pairs."""
-
-        # Call OpenAI API using the client
-        response = client.chat.completions.create(
-            model="gpt-4-vision-preview",
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_message
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Create flashcards from this study material. Return them in this exact format: [{\"question\": \"Q1\", \"answer\": \"A1\"}, {\"question\": \"Q2\", \"answer\": \"A2\"}]"
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
-                            }
-                        }
-                    ]
-                }
-            ],
-            max_tokens=4000
-        )
-        
-        # Extract the flashcards from the response
-        flashcards_text = response.choices[0].message.content
-        # Find the JSON array in the response
-        flashcards_match = re.search(r'\[.*\]', flashcards_text, re.DOTALL)
-        if not flashcards_match:
-            return jsonify({'error': 'Failed to parse flashcards'}), 500
+        try:
+            # Read and encode the image
+            image_data = file.read()
+            base64_image = base64.b64encode(image_data).decode('utf-8')
             
-        flashcards = json.loads(flashcards_match.group())
-        return jsonify({'flashcards': flashcards})
-
+            # Prepare the system message based on card type
+            if card_type == 'exact':
+                system_message = """You are a helpful AI that creates flashcards from study materials. 
+                Extract EXACTLY the questions and answers that appear in the image. Format them as a JSON array of 
+                {question, answer} pairs. Do not create new questions - only use what's in the image."""
+            else:
+                system_message = """You are a helpful AI that creates flashcards from study materials. 
+                Analyze the content and create 15-20 similar but different questions that test the same concepts. 
+                Make sure the questions are varied and test different aspects of understanding. 
+                Format them as a JSON array of {question, answer} pairs."""
+            
+            # Call OpenAI API using the client
+            response = client.chat.completions.create(
+                model="gpt-4-vision-preview",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_message
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Create flashcards from this study material. Return them in this exact format: [{\"question\": \"Q1\", \"answer\": \"A1\"}, {\"question\": \"Q2\", \"answer\": \"A2\"}]"
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=4000
+            )
+            
+            # Extract the flashcards from the response
+            flashcards_text = response.choices[0].message.content
+            # Find the JSON array in the response
+            flashcards_match = re.search(r'\[.*\]', flashcards_text, re.DOTALL)
+            if not flashcards_match:
+                return jsonify({'error': 'Failed to parse flashcards'}), 500
+            
+            flashcards = json.loads(flashcards_match.group())
+            return jsonify({'flashcards': flashcards})
+            
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+            
     except Exception as e:
         print(f"Error: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -1168,7 +1188,6 @@ def generate_homework():
         )
         
         content = response.choices[0].message.content
-        print("GPT Response:", content)  # Debug print
         
         # Parse the response into questions
         questions = []
@@ -1504,6 +1523,54 @@ def signup():
 def logout():
     logout_user()
     return redirect(url_for('index'))
+
+def validate_configuration():
+    """Validate all required configurations and API keys on startup."""
+    config_status = {
+        'openai_api': False,
+        'secret_key': False,
+        'database': False
+    }
+    
+    # Check OpenAI API
+    if not OPENAI_API_KEY:
+        print("ERROR: OPENAI_API_KEY not found in environment variables")
+    else:
+        try:
+            test_client = OpenAI(api_key=OPENAI_API_KEY)
+            # Simple API test
+            test_client.models.list()
+            config_status['openai_api'] = True
+            print("✓ OpenAI API configuration validated")
+        except Exception as e:
+            print(f"ERROR: OpenAI API validation failed: {str(e)}")
+    
+    # Check Secret Key
+    if not app.config['SECRET_KEY']:
+        print("ERROR: SECRET_KEY not found in environment variables")
+    else:
+        config_status['secret_key'] = True
+        print("✓ Secret key configuration validated")
+    
+    # Check Database
+    try:
+        with app.app_context():
+            db.create_all()
+        config_status['database'] = True
+        print("✓ Database configuration validated")
+    except Exception as e:
+        print(f"ERROR: Database validation failed: {str(e)}")
+    
+    # Overall status
+    if all(config_status.values()):
+        print("\n✓ All configurations validated successfully")
+    else:
+        failed = [k for k, v in config_status.items() if not v]
+        print(f"\n⚠ Configuration validation failed for: {', '.join(failed)}")
+        print("The application may not function correctly without these configurations.")
+
+# Run configuration validation at startup
+validate_configuration()
 
 if __name__ == '__main__':
     app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
