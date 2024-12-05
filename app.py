@@ -1552,6 +1552,7 @@ def generate_blog():
         
         db.session.commit()
         return jsonify({'blog_posts': saved_posts})
+
     except Exception as e:
         print(f"Error generating blogs: {str(e)}")
         db.session.rollback()
@@ -1654,6 +1655,33 @@ def signup():
 def logout():
     logout_user()
     return redirect(url_for('index'))
+
+@app.route('/create-admin', methods=['GET', 'POST'])
+def create_admin():
+    if User.query.first() is not None:
+        return "Admin already exists", 400
+        
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        if not email or not password:
+            return "Email and password required", 400
+            
+        user = User(email=email)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        
+        return redirect(url_for('login'))
+    
+    return '''
+    <form method="POST">
+        <input type="email" name="email" placeholder="Email" required><br>
+        <input type="password" name="password" placeholder="Password" required><br>
+        <button type="submit">Create Admin</button>
+    </form>
+    '''
 
 def validate_configuration():
     """Validate all required configurations and API keys on startup."""
