@@ -25,6 +25,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User
 from urllib.parse import urlparse
 from datetime import timedelta
+from blog_generator import BlogGenerator
 
 # Load environment variables first
 load_dotenv()
@@ -1520,6 +1521,48 @@ Please generate {question_count} questions following this exact format."""
 def practice_test():
     """Render the practice test page"""
     return render_template('practice_test.html')
+
+# Blog routes
+@app.route('/blog/generate', methods=['POST'])
+@login_required
+def generate_blog():
+    try:
+        data = request.get_json()
+        keywords = data.get('keywords', [])
+        
+        if not keywords:
+            return jsonify({'error': 'No keywords provided'}), 400
+            
+        blog_posts = blog_generator.bulk_generate(keywords)
+        return jsonify({'blog_posts': blog_posts})
+    except Exception as e:
+        print(f"Error generating blogs: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/blog/<slug>')
+def view_blog(slug):
+    try:
+        # In a real application, you would fetch the blog post from a database
+        # For now, we'll store it in memory (you should implement proper storage)
+        return render_template('blog.html', 
+                             title=blog_post['title'],
+                             introduction=blog_post['introduction'],
+                             content=blog_post['content'],
+                             toc=blog_post['toc'])
+    except Exception as e:
+        print(f"Error viewing blog: {str(e)}")
+        return render_template('error.html', error="Blog post not found")
+
+@app.route('/blog/manager')
+@login_required
+def blog_manager():
+    return render_template('blog_manager.html')
+
+# Initialize blog generator
+blog_generator = BlogGenerator(
+    openai_api_key=os.getenv('OPENAI_API_KEY'),
+    fal_api_key=os.getenv('FAL_API_KEY')
+)
 
 # Authentication routes
 @app.route('/login', methods=['GET', 'POST'])
