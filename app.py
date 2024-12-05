@@ -201,7 +201,11 @@ def load_user(user_id):
 # Main routes
 @app.route('/')
 def index():
-    return render_template('home.html')
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        print(f"Error rendering index template: {str(e)}")
+        return render_template('error.html', error="An error occurred while loading the page. Please try again.")
 
 @app.route('/dashboard')
 @login_required
