@@ -44,9 +44,16 @@ print(f"Static directory: {app.static_folder}")
 # Set up configurations
 if os.environ.get('FLASK_ENV') == 'production':
     app.config.update(
-        SESSION_COOKIE_SECURE=True,
-        SESSION_COOKIE_HTTPONLY=True,
-        SESSION_COOKIE_SAMESITE='Lax',
+        SECRET_KEY=get_or_generate_secret_key(),
+        SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL', '').replace('postgres://', 'postgresql://'),
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        PERMANENT_SESSION_LIFETIME=timedelta(minutes=60)
+    )
+else:
+    app.config.update(
+        SECRET_KEY=get_or_generate_secret_key(),
+        SQLALCHEMY_DATABASE_URI='sqlite:///app.db',
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
         PERMANENT_SESSION_LIFETIME=timedelta(minutes=60)
     )
 
@@ -68,25 +75,27 @@ if not secret_key:
     print("Notice: Using generated SECRET_KEY for this session")
 app.config['SECRET_KEY'] = secret_key
 
-# Database configuration
-if os.environ.get('DATABASE_URL'):
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
-else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
-
 # Initialize login manager
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # Initialize database
-with app.app_context():
-    db.init_app(app)
-    try:
-        db.create_all()
-        print("Database tables created successfully")
-    except Exception as e:
-        print(f"Error creating database tables: {str(e)}")
+def create_tables():
+    """Create all database tables."""
+    with app.app_context():
+        try:
+            db.create_all()
+            print("Database tables created successfully")
+        except Exception as e:
+            print(f"Error creating database tables: {str(e)}")
+
+# Initialize extensions
+db.init_app(app)
+login_manager.init_app(app)
+
+# Create database tables
+create_tables()
 
 # API Configuration
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
