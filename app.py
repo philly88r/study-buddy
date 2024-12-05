@@ -41,18 +41,30 @@ if os.environ.get('FLASK_ENV') == 'production':
         SESSION_COOKIE_SAMESITE='Lax',
         PERMANENT_SESSION_LIFETIME=timedelta(minutes=60)
     )
-    
+
+# Generate a secure secret key if not provided
+def generate_secure_key():
+    """Generate a secure random key."""
+    try:
+        # Try to use secrets module for more secure key generation
+        import secrets
+        return secrets.token_hex(32)
+    except ImportError:
+        # Fallback to os.urandom
+        return os.urandom(32).hex()
+
+# Set up secret key
+secret_key = os.getenv('SECRET_KEY')
+if not secret_key:
+    secret_key = generate_secure_key()
+    print("Notice: Using generated SECRET_KEY for this session")
+app.config['SECRET_KEY'] = secret_key
+
 # Database configuration
 if os.environ.get('DATABASE_URL'):
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 else:
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
-
-# Set up secret key
-if not os.getenv('SECRET_KEY'):
-    print("Warning: SECRET_KEY not found in environment variables")
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(24).hex())
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize login manager
 login_manager = LoginManager()
