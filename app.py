@@ -30,44 +30,8 @@ from blog_generator import BlogGenerator
 # Load environment variables first
 load_dotenv()
 
-# Initialize Flask app
+# Create Flask app
 app = Flask(__name__)
-CORS(app)
-
-# Set up template and static directories
-app.template_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
-app.static_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
-
-print(f"Template directory: {app.template_folder}")
-print(f"Static directory: {app.static_folder}")
-
-# Set up configurations
-secret_key = get_or_generate_secret_key()
-if os.environ.get('FLASK_ENV') == 'production':
-    app.config.update(
-        SECRET_KEY=secret_key,
-        SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL', '').replace('postgres://', 'postgresql://'),
-        SQLALCHEMY_TRACK_MODIFICATIONS=False,
-        PERMANENT_SESSION_LIFETIME=timedelta(minutes=60)
-    )
-else:
-    app.config.update(
-        SECRET_KEY=secret_key,
-        SQLALCHEMY_DATABASE_URI='sqlite:///app.db',
-        SQLALCHEMY_TRACK_MODIFICATIONS=False,
-        PERMANENT_SESSION_LIFETIME=timedelta(minutes=60)
-    )
-
-# Generate a secure secret key if not provided
-def generate_secure_key():
-    """Generate a secure random key."""
-    try:
-        # Try to use secrets module for more secure key generation
-        import secrets
-        return secrets.token_hex(32)
-    except ImportError:
-        # Fallback to os.urandom
-        return os.urandom(32).hex()
 
 def get_or_generate_secret_key():
     """Get the secret key from environment or generate a new one."""
@@ -78,12 +42,33 @@ def get_or_generate_secret_key():
         print("Notice: Generated new SECRET_KEY")
     return secret_key
 
+# Set up configurations
+if os.environ.get('FLASK_ENV') == 'production':
+    app.config.update(
+        SECRET_KEY=get_or_generate_secret_key(),
+        SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL', '').replace('postgres://', 'postgresql://'),
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        PERMANENT_SESSION_LIFETIME=timedelta(minutes=60),
+        SESSION_COOKIE_SECURE=True,
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE='Lax'
+    )
+else:
+    app.config.update(
+        SECRET_KEY=get_or_generate_secret_key(),
+        SQLALCHEMY_DATABASE_URI='sqlite:///app.db',
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        PERMANENT_SESSION_LIFETIME=timedelta(minutes=60)
+    )
+
 # Initialize login manager
 login_manager = LoginManager()
 login_manager.login_view = 'login'
 login_manager.init_app(app)
 
 # Initialize database
+db.init_app(app)
+
 def create_tables():
     """Create all database tables."""
     with app.app_context():
@@ -93,11 +78,23 @@ def create_tables():
         except Exception as e:
             print(f"Error creating database tables: {str(e)}")
 
-# Initialize extensions
-db.init_app(app)
-
 # Create database tables
 create_tables()
+
+# Set template and static directories
+app.template_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
+app.static_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+
+print(f"Template directory: {app.template_folder}")
+print(f"Static directory: {app.static_folder}")
+
+CORS(app)
+
+# Initialize blog generator
+blog_generator = BlogGenerator(
+    openai_api_key=os.getenv('OPENAI_API_KEY'),
+    fal_api_key=os.getenv('FAL_API_KEY')
+)
 
 # API Configuration
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -1590,12 +1587,6 @@ def blog_list():
     per_page = 10
     blogs = BlogPost.query.order_by(BlogPost.created_at.desc()).paginate(page=page, per_page=per_page)
     return render_template('blog_list.html', blogs=blogs)
-
-# Initialize blog generator
-blog_generator = BlogGenerator(
-    openai_api_key=os.getenv('OPENAI_API_KEY'),
-    fal_api_key=os.getenv('FAL_API_KEY')
-)
 
 # Authentication routes
 @app.route('/login', methods=['GET', 'POST'])
