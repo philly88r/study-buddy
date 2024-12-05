@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Homework Checker - AI Tutor</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold text-center mb-8">Homework Checker</h1>
+        
+        <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-6">
+            <!-- Upload Form -->
+            <form id="uploadForm" action="/analyze_homework" method="post" enctype="multipart/form-data" class="space-y-6">
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <input type="file" 
+                           id="file" 
+                           name="file"
+                           accept="image/*"
+                           class="hidden">
+                    <label for="file" class="cursor-pointer">
+                        <div class="space-y-2">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <div class="text-gray-600">
+                                <span class="font-medium">Click to upload</span> or drag and drop
+                            </div>
+                            <p class="text-xs text-gray-500">Upload your completed homework to check</p>
+                        </div>
+                    </label>
+                </div>
+            </form>
+
+            <!-- Loading Indicator -->
+            <div id="loading" class="hidden mt-4">
+                <div class="flex items-center justify-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    <span class="ml-2 text-gray-600">Analyzing your homework...</span>
+                </div>
+            </div>
+
+            <!-- Error Display -->
+            <div id="error" class="hidden mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded"></div>
+
+            <!-- Results Display -->
+            <div id="results" class="hidden mt-8 space-y-6"></div>
+        </div>
+    </div>
+
+    <script>
+        const uploadForm = document.getElementById('uploadForm');
+        const fileInput = document.getElementById('file');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const results = document.getElementById('results');
+
+        // Drag and drop functionality
+        uploadForm.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadForm.classList.add('border-blue-500');
+        });
+
+        uploadForm.addEventListener('dragleave', () => {
+            uploadForm.classList.remove('border-blue-500');
+        });
+
+        uploadForm.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadForm.classList.remove('border-blue-500');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showError('Please upload an image file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Show loading state
+            loading.classList.remove('hidden');
+            error.classList.add('hidden');
+            results.classList.add('hidden');
+
+            fetch('/analyze_homework', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log("Received data:", data);
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                if (!data.results || !Array.isArray(data.results)) {
+                    throw new Error('Invalid response format');
+                }
+                displayResults(data.results);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showError(error.message || 'Failed to analyze homework');
+            })
+            .finally(() => {
+                loading.classList.add('hidden');
+            });
+        }
+
+        function displayResults(data) {
+            results.innerHTML = '';
+            results.classList.remove('hidden');
+            
+            if (!data || !Array.isArray(data)) {
+                showError('Invalid response format');
+                return;
+            }
+
+            data.forEach((result, index) => {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'bg-white rounded-lg shadow p-6 space-y-4';
+
+                // Question
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'space-y-2';
+                questionDiv.innerHTML = `
+                    <h3 class="text-lg font-semibold">Problem ${index + 1}</h3>
+                    <p class="text-gray-700">${result.question}</p>
+                `;
+                resultDiv.appendChild(questionDiv);
+
+                // Answer Status
+                const statusDiv = document.createElement('div');
+                statusDiv.className = 'flex items-center space-x-2';
+                
+                if (result.is_correct) {
+                    // Show checkmark for correct answers
+                    statusDiv.innerHTML = `
+                        <svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span class="text-green-500 font-medium">Correct!</span>
+                    `;
+                } else {
+                    // Show explanation only for incorrect answers
+                    statusDiv.innerHTML = `
+                        <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                        <span class="text-red-500 font-medium">Incorrect</span>
+                    `;
+
+                    // Add explanation for incorrect answers
+                    const explanationDiv = document.createElement('div');
+                    explanationDiv.className = 'mt-4 p-4 bg-red-50 rounded-lg';
+                    explanationDiv.innerHTML = `
+                        <p class="text-gray-700"><strong>Your answer:</strong> ${result.student_answer}</p>
+                        <p class="text-gray-700"><strong>Correct answer:</strong> ${result.correct_answer}</p>
+                        <p class="text-gray-700 mt-2"><strong>Explanation:</strong> ${result.explanation}</p>
+                    `;
+                    resultDiv.appendChild(explanationDiv);
+                }
+                
+                resultDiv.appendChild(statusDiv);
+                results.appendChild(resultDiv);
+            });
+        }
+
+        function showError(message) {
+            error.textContent = message;
+            error.classList.remove('hidden');
+            loading.classList.add('hidden');
+            results.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload-Based Practice Test Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold text-center mb-8">Upload-Based Practice Test Generator</h1>
+        
+        <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-6">
+            <form id="uploadForm" class="space-y-6">
+                <!-- File Upload -->
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Upload Image:</label>
+                    <input type="file" 
+                           id="file" 
+                           name="file" 
+                           accept="image/*"
+                           class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <p class="mt-1 text-sm text-gray-500">Supported formats: JPG, PNG, GIF</p>
+                </div>
+
+                <!-- Grade Level Selection -->
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Grade Level:</label>
+                    <select id="grade" name="grade" class="w-full p-2 border rounded">
+                        <option value="">Select Grade</option>
+                        <option value="1">1st Grade</option>
+                        <option value="2">2nd Grade</option>
+                        <option value="3">3rd Grade</option>
+                        <option value="4">4th Grade</option>
+                        <option value="5">5th Grade</option>
+                        <option value="6">6th Grade</option>
+                        <option value="7">7th Grade</option>
+                        <option value="8">8th Grade</option>
+                        <option value="9">9th Grade</option>
+                        <option value="10">10th Grade</option>
+                        <option value="11">11th Grade</option>
+                        <option value="12">12th Grade</option>
+                    </select>
+                </div>
+
+                <!-- Number of Questions -->
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Number of Questions:</label>
+                    <select id="questionCount" name="questionCount" class="w-full p-2 border rounded">
+                        <option value="5">5 Questions</option>
+                        <option value="10">10 Questions</option>
+                        <option value="15">15 Questions</option>
+                    </select>
+                </div>
+
+                <button type="submit" 
+                        class="w-full bg-blue-500 text-white p-3 rounded hover:bg-blue-600 transition-colors">
+                    Generate Practice Test
+                </button>
+            </form>
+
+            <!-- Loading Indicator -->
+            <div id="loading" class="hidden mt-4 text-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p class="mt-2 text-gray-600">Generating your practice test...</p>
+            </div>
+
+            <!-- Error Display -->
+            <div id="error" class="hidden mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded"></div>
+
+            <!-- Test Display -->
+            <div id="testContent" class="hidden mt-8">
+                <h2 class="text-2xl font-bold mb-4">Your Practice Test</h2>
+                <form id="answerForm" class="space-y-8">
+                    <div id="questions" class="space-y-8"></div>
+                    
+                    <div class="flex space-x-4">
+                        <button type="submit" 
+                                class="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600 transition-colors">
+                            Submit Answers
+                        </button>
+                        <button type="button" id="showAnswers"
+                                class="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors">
+                            Show Correct Answers
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Results Display -->
+                <div id="results" class="hidden mt-8">
+                    <h3 class="text-xl font-bold mb-4">Results</h3>
+                    <div class="p-4 bg-gray-50 rounded">
+                        <p class="text-lg">Score: <span id="score" class="font-bold"></span></p>
+                        <p class="mt-2">Correct Answers: <span id="correctCount" class="font-bold text-green-600"></span></p>
+                        <p>Total Questions: <span id="totalQuestions" class="font-bold"></span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentQuestions = [];
+
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const fileInput = document.getElementById('file');
+            const grade = document.getElementById('grade').value;
+            const questionCount = document.getElementById('questionCount').value;
+
+            if (!fileInput.files[0] || !grade) {
+                showError('Please select a file and grade level');
+                return;
+            }
+
+            formData.append('file', fileInput.files[0]);
+            formData.append('grade', grade);
+            formData.append('questionCount', questionCount);
+
+            // Show loading
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('error').classList.add('hidden');
+            document.getElementById('testContent').classList.add('hidden');
+            document.getElementById('results').classList.add('hidden');
+
+            try {
+                const response = await fetch('/generate_upload_test', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to generate test');
+                }
+
+                if (!data.questions || !Array.isArray(data.questions) || data.questions.length === 0) {
+                    throw new Error('No questions were generated');
+                }
+
+                // Validate each question has content
+                const validQuestions = data.questions.filter(q => 
+                    q && typeof q.question === 'string' && q.question.trim() && 
+                    typeof q.answer === 'string' && q.answer.trim()
+                );
+
+                if (validQuestions.length === 0) {
+                    throw new Error('No valid questions were generated');
+                }
+
+                currentQuestions = validQuestions;
+                displayTest(validQuestions);
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        });
+
+        function displayTest(questions) {
+            const questionsDiv = document.getElementById('questions');
+            questionsDiv.innerHTML = '';
+
+            questions.forEach((question, index) => {
+                const questionElement = document.createElement('div');
+                questionElement.className = 'p-6 bg-gray-50 rounded-lg';
+                
+                // Validate question and answer content
+                const questionText = question.question ? question.question.trim() : 'Error: Question not available';
+                const answerText = question.answer ? question.answer.trim() : 'Error: Answer not available';
+                
+                questionElement.innerHTML = `
+                    <div class="mb-4">
+                        <p class="font-bold text-lg mb-2">Question ${index + 1}:</p>
+                        <p class="mb-4">${questionText}</p>
+                        
+                        <div class="mt-4">
+                            <label class="block text-gray-700 font-medium mb-2">Your Answer:</label>
+                            <textarea 
+                                name="answer_${index}"
+                                class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500"
+                                rows="3"
+                                placeholder="Enter your answer here..."
+                            ></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="correct-answer hidden mt-4 p-4 bg-green-50 rounded">
+                        <p class="font-semibold text-green-800">Correct Answer:</p>
+                        <p class="mt-1">${answerText}</p>
+                    </div>
+
+                    <div class="feedback hidden mt-4 p-4 rounded"></div>
+                `;
+                questionsDiv.appendChild(questionElement);
+            });
+
+            document.getElementById('testContent').classList.remove('hidden');
+            document.getElementById('results').classList.add('hidden');
+        }
+
+        document.getElementById('answerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const answers = [];
+            currentQuestions.forEach((_, index) => {
+                const answerElement = document.querySelector(`[name="answer_${index}"]`);
+                answers.push({
+                    question: currentQuestions[index].question,
+                    userAnswer: answerElement.value,
+                    correctAnswer: currentQuestions[index].answer
+                });
+            });
+
+            // Calculate score
+            let correct = 0;
+            answers.forEach((answer, index) => {
+                const feedbackDiv = document.querySelectorAll('.feedback')[index];
+                const isCorrect = checkAnswer(answer.userAnswer, answer.correctAnswer);
+                
+                feedbackDiv.classList.remove('hidden', 'bg-green-100', 'bg-red-100');
+                feedbackDiv.classList.add(isCorrect ? 'bg-green-100' : 'bg-red-100');
+                feedbackDiv.innerHTML = `
+                    <p class="font-semibold ${isCorrect ? 'text-green-800' : 'text-red-800'}">
+                        ${isCorrect ? 'Correct!' : 'Incorrect'}
+                    </p>
+                `;
+                
+                if (isCorrect) correct++;
+            });
+
+            // Display results
+            const resultsDiv = document.getElementById('results');
+            document.getElementById('score').textContent = `${Math.round((correct / answers.length) * 100)}%`;
+            document.getElementById('correctCount').textContent = correct;
+            document.getElementById('totalQuestions').textContent = answers.length;
+            resultsDiv.classList.remove('hidden');
+        });
+
+        document.getElementById('showAnswers').addEventListener('click', function() {
+            document.querySelectorAll('.correct-answer').forEach(answer => {
+                answer.classList.toggle('hidden');
+            });
+            this.textContent = this.textContent === 'Show Correct Answers' ? 'Hide Correct Answers' : 'Show Correct Answers';
+        });
+
+        function checkAnswer(userAnswer, correctAnswer) {
+            // Basic answer checking - you might want to make this more sophisticated
+            return userAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

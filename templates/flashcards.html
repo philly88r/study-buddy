@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Flashcards - AI Tutor</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .flashcard {
+            perspective: 1000px;
+            height: 300px;
+        }
+        .flashcard-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.8s;
+            transform-style: preserve-3d;
+            cursor: pointer;
+        }
+        .flashcard.flipped .flashcard-inner {
+            transform: rotateY(180deg);
+        }
+        .flashcard-front, .flashcard-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .flashcard-back {
+            transform: rotateY(180deg);
+        }
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold text-center mb-8">AI Flashcards</h1>
+        
+        <!-- Upload Section -->
+        <div id="uploadSection" class="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Create Your Flashcards</h2>
+            <form id="uploadForm" class="space-y-4">
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <input type="file" 
+                           id="file" 
+                           name="file"
+                           accept="image/*"
+                           class="hidden"
+                           onchange="updateFileName(this)">
+                    <label for="file" class="cursor-pointer">
+                        <div class="space-y-2">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <div class="text-gray-600">
+                                <span class="font-medium">Click to upload</span> or drag and drop
+                            </div>
+                            <p class="text-xs text-gray-500">Upload your study material (image or PDF)</p>
+                            <p id="selectedFileName" class="mt-2 text-sm text-blue-600 font-medium"></p>
+                        </div>
+                    </label>
+                </div>
+                
+                <div class="flex justify-center space-x-6 mb-4">
+                    <label class="flex items-start space-x-3">
+                        <input type="radio" name="cardType" value="exact" checked class="mt-1">
+                        <div>
+                            <span class="text-gray-800 font-medium block">Exact Questions</span>
+                            <span class="text-sm text-gray-600">Use questions directly from material</span>
+                        </div>
+                    </label>
+                    <label class="flex items-start space-x-3">
+                        <input type="radio" name="cardType" value="similar" class="mt-1">
+                        <div>
+                            <span class="text-gray-800 font-medium block">Similar Questions</span>
+                            <span class="text-sm text-gray-600">Generate 15-20 similar questions</span>
+                        </div>
+                    </label>
+                </div>
+                
+                <div class="flex justify-center mb-4">
+                    <button type="submit" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+                        Generate Flashcards
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="hidden max-w-2xl mx-auto">
+            <div class="flex items-center justify-center space-x-3">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <span class="text-gray-600">Generating your flashcards...</span>
+            </div>
+        </div>
+
+        <!-- Flashcard Study Section -->
+        <div id="studySection" class="hidden max-w-3xl mx-auto">
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <!-- Progress Bar -->
+                <div class="mb-6">
+                    <div class="flex justify-between text-sm text-gray-600 mb-2">
+                        <span id="progressText">Card 0/0</span>
+                        <span id="masteryText">Mastery: 0%</span>
+                    </div>
+                    <div class="bg-gray-200 rounded-full h-2.5">
+                        <div id="progressBar" class="bg-green-500 h-2.5 rounded-full progress-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Flashcard -->
+                <div class="flashcard mb-6">
+                    <div class="flashcard-inner">
+                        <div class="flashcard-front bg-white rounded-lg border-2 border-gray-200">
+                            <div id="cardFront" class="text-xl"></div>
+                        </div>
+                        <div class="flashcard-back bg-white rounded-lg border-2 border-gray-200">
+                            <div id="cardBack" class="text-xl"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="flex justify-between items-center">
+                    <button id="prevCard" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors">
+                        Previous
+                    </button>
+                    <div class="space-x-4">
+                        <button id="markIncorrect" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors">
+                            Incorrect
+                        </button>
+                        <button id="markCorrect" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors">
+                            Correct
+                        </button>
+                    </div>
+                    <button id="nextCard" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors">
+                        Next
+                    </button>
+                </div>
+            </div>
+
+            <!-- Study Stats -->
+            <div class="mt-6 grid grid-cols-3 gap-4">
+                <div class="bg-white rounded-lg shadow p-4 text-center">
+                    <div id="totalCards" class="text-2xl font-bold text-gray-800">0</div>
+                    <div class="text-sm text-gray-600">Total Cards</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4 text-center">
+                    <div id="cardsLearned" class="text-2xl font-bold text-green-600">0</div>
+                    <div class="text-sm text-gray-600">Mastered</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4 text-center">
+                    <div id="needsPractice" class="text-2xl font-bold text-orange-600">0</div>
+                    <div class="text-sm text-gray-600">Need Practice</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error Display -->
+        <div id="error" class="hidden max-w-2xl mx-auto mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded"></div>
+    </div>
+
+    <script>
+        let flashcards = [];
+        let currentCardIndex = 0;
+        let cardStats = {};  // Track correct/incorrect for each card
+
+        // DOM Elements
+        const uploadForm = document.getElementById('uploadForm');
+        const uploadSection = document.getElementById('uploadSection');
+        const studySection = document.getElementById('studySection');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const fileInput = document.getElementById('file');
+        
+        // Card Elements
+        const cardFront = document.getElementById('cardFront');
+        const cardBack = document.getElementById('cardBack');
+        const flashcard = document.querySelector('.flashcard');
+        const prevButton = document.getElementById('prevCard');
+        const nextButton = document.getElementById('nextCard');
+        const markCorrectButton = document.getElementById('markCorrect');
+        const markIncorrectButton = document.getElementById('markIncorrect');
+
+        // Stats Elements
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const masteryText = document.getElementById('masteryText');
+        const totalCardsElement = document.getElementById('totalCards');
+        const cardsLearnedElement = document.getElementById('cardsLearned');
+        const needsPracticeElement = document.getElementById('needsPractice');
+
+        function updateCard() {
+            if (flashcards.length === 0) return;
+            
+            const card = flashcards[currentCardIndex];
+            cardFront.textContent = card.question;
+            cardBack.textContent = card.answer;
+            
+            // Update progress text
+            progressText.textContent = `Card ${currentCardIndex + 1}/${flashcards.length}`;
+            
+            // Update progress bar
+            const progress = ((currentCardIndex + 1) / flashcards.length) * 100;
+            progressBar.style.width = `${progress}%`;
+            
+            // Reset flip state
+            flashcard.classList.remove('flipped');
+        }
+
+        // Flip card when clicked
+        flashcard.addEventListener('click', () => {
+            flashcard.classList.toggle('flipped');
+        });
+
+        // Previous card
+        prevButton.addEventListener('click', () => {
+            if (currentCardIndex > 0) {
+                currentCardIndex--;
+                updateCard();
+            }
+        });
+
+        // Next card
+        nextButton.addEventListener('click', () => {
+            if (currentCardIndex < flashcards.length - 1) {
+                currentCardIndex++;
+                updateCard();
+            }
+        });
+
+        // Mark card as correct/incorrect
+        markCorrectButton.addEventListener('click', () => {
+            if (flashcards.length === 0) return;
+            cardStats[currentCardIndex] = true;
+            updateStats();
+            if (currentCardIndex < flashcards.length - 1) {
+                currentCardIndex++;
+                updateCard();
+            }
+        });
+
+        markIncorrectButton.addEventListener('click', () => {
+            if (flashcards.length === 0) return;
+            cardStats[currentCardIndex] = false;
+            updateStats();
+            if (currentCardIndex < flashcards.length - 1) {
+                currentCardIndex++;
+                updateCard();
+            }
+        });
+
+        function updateStats() {
+            const total = flashcards.length;
+            const answered = Object.keys(cardStats).length;
+            const correct = Object.values(cardStats).filter(v => v).length;
+            
+            totalCardsElement.textContent = total;
+            cardsLearnedElement.textContent = correct;
+            needsPracticeElement.textContent = answered - correct;
+            
+            const mastery = total > 0 ? Math.round((correct / total) * 100) : 0;
+            masteryText.textContent = `Mastery: ${mastery}%`;
+        }
+
+        // Handle file upload
+        uploadForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('file');
+            const cardType = document.querySelector('input[name="cardType"]:checked').value;
+            
+            if (!fileInput.files[0]) {
+                alert('Please select a file first');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('cardType', cardType);
+
+            // Show loading state
+            loading.classList.remove('hidden');
+            studySection.classList.add('hidden');
+            error.classList.add('hidden');
+
+            try {
+                const response = await fetch('/generate_flashcards', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to generate flashcards');
+                }
+
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                // Reset state
+                flashcards = data.flashcards;
+                currentCardIndex = 0;
+                cardStats = {};
+
+                // Show study section
+                uploadSection.classList.add('hidden');
+                loading.classList.add('hidden');
+                studySection.classList.remove('hidden');
+
+                // Initialize cards
+                updateCard();
+                updateStats();
+
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Error generating flashcards: ' + error.message);
+                loading.classList.add('hidden');
+            }
+        });
+
+        function showError(message) {
+            error.textContent = message;
+            error.classList.remove('hidden');
+        }
+
+        function updateFileName(input) {
+            const fileNameDisplay = document.getElementById('selectedFileName');
+            if (input.files && input.files[0]) {
+                fileNameDisplay.textContent = 'Selected: ' + input.files[0].name;
+                // Add a visual indicator that file was selected
+                input.closest('.border-dashed').classList.add('border-blue-500');
+                input.closest('.border-dashed').classList.remove('border-gray-300');
+            } else {
+                fileNameDisplay.textContent = '';
+                input.closest('.border-dashed').classList.remove('border-blue-500');
+                input.closest('.border-dashed').classList.add('border-gray-300');
+            }
+        }
+
+        // Add drag and drop support
+        const dropZone = document.querySelector('.border-dashed');
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-blue-500');
+            dropZone.classList.remove('border-gray-300');
+        });
+        
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-blue-500');
+            dropZone.classList.add('border-gray-300');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('file');
+            fileInput.files = e.dataTransfer.files;
+            updateFileName(fileInput);
+        });
+    </script>
+</body>
+</html>

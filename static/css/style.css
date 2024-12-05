@@ -1,0 +1,170 @@
+/* Custom styles */
+.container {
+    max-width: 1200px;
+}
+
+/* File upload button styling */
+input[type="file"] {
+    border: 2px dashed #e2e8f0;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+}
+
+input[type="file"]:hover {
+    border-color: #a0aec0;
+}
+
+/* Feedback animations */
+.feedback-enter {
+    opacity: 0;
+    transform: translateY(-10px);
+}
+
+.feedback-enter-active {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 300ms, transform 300ms;
+}
+
+/* Practice problem card hover effects */
+.practice-problem {
+    transition: transform 0.2s;
+}
+
+.practice-problem:hover {
+    transform: translateY(-2px);
+}
+
+/* Custom button styles */
+button {
+    transition: all 0.2s;
+}
+
+button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Flashcard styles */
+.card-front, .card-back {
+    transition: all 0.3s ease;
+}
+
+.hidden {
+    display: none;
+}
+
+#flashcards > div {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+#flashcards > div:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Quiz styles */
+.quiz-question {
+    transition: background-color 0.2s ease;
+}
+
+.quiz-question:hover {
+    background-color: #f8fafc;
+}
+
+.quiz-option {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.quiz-option:hover {
+    background-color: #f1f5f9;
+}
+
+/* Results styles */
+.results {
+    animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Form input styles */
+input[type="text"], textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.375rem;
+    transition: border-color 0.2s ease;
+}
+
+input[type="text"]:focus, textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Grid work area styles */
+.work-grid {
+    font-family: monospace;
+    line-height: 1.2;
+    white-space: pre;
+}
+
+/* Modal styles */
+.modal {
+    transition: opacity 0.3s ease;
+}
+
+.modal-content {
+    transform: scale(0.95);
+    transition: transform 0.3s ease;
+}
+
+.modal.active .modal-content {
+    transform: scale(1);
+}
+
+/* Loading spinner */
+.spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Error message styles */
+.error-message {
+    background-color: #fee2e2;
+    border: 1px solid #ef4444;
+    color: #b91c1c;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    margin: 1rem 0;
+}
+
+/* Success message styles */
+.success-message {
+    background-color: #dcfce7;
+    border: 1px solid #22c55e;
+    color: #15803d;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    margin: 1rem 0;
+}

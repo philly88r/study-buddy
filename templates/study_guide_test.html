@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Guide Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-indigo-600 mb-2">Study Guide Generator</h1>
+            <p class="text-gray-600">Create practice tests and track your progress</p>
+            {% if error %}
+            <div class="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                <span class="block sm:inline">{{ error }}</span>
+            </div>
+            {% endif %}
+            <nav class="mt-4">
+                <a href="/" class="text-indigo-600 hover:text-indigo-800 mr-4">Back to Homework Helper</a>
+            </nav>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Document Upload Section -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-bold mb-4">Generate from Documents</h2>
+                <p class="text-gray-600 mb-4">Upload your study materials and we'll create practice problems</p>
+                
+                <div class="mb-4">
+                    <label class="block text-gray-700 mb-2">Upload study materials:</label>
+                    <input type="file" id="study-materials" accept="image/*" multiple 
+                           class="w-full p-2 border rounded mb-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <button onclick="generateFromDocuments()" 
+                            class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors">
+                        Generate Practice Test
+                    </button>
+                </div>
+            </div>
+
+            <!-- Topic-based Generation Section -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-bold mb-4">Generate by Topic</h2>
+                <p class="text-gray-600 mb-4">Enter your current study topic for customized practice</p>
+                
+                <div class="mb-4">
+                    <label class="block text-gray-700 mb-2">Subject:</label>
+                    <select id="subject" class="w-full p-2 border rounded mb-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="math">Mathematics</option>
+                        <option value="science">Science</option>
+                        <option value="english">English</option>
+                        <option value="history">History</option>
+                        <option value="other">Other</option>
+                    </select>
+
+                    <label class="block text-gray-700 mb-2">Topic:</label>
+                    <input type="text" id="topic" placeholder="e.g., Algebra, Chemical Reactions" 
+                           class="w-full p-2 border rounded mb-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    
+                    <label class="block text-gray-700 mb-2">Difficulty Level:</label>
+                    <select id="difficulty" class="w-full p-2 border rounded mb-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="beginner">Beginner</option>
+                        <option value="intermediate">Intermediate</option>
+                        <option value="advanced">Advanced</option>
+                    </select>
+
+                    <button onclick="generateFromTopic()" 
+                            class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors">
+                        Generate Practice Test
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Practice Test Display -->
+        <div id="practice-test" class="mt-8">
+            <div id="problems-container" class="space-y-4"></div>
+        </div>
+
+        <!-- Test Results -->
+        <div id="test-results" class="mt-8 hidden bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-2xl font-bold mb-4">Test Results</h2>
+            <div id="score-display"></div>
+            <div id="feedback-container" class="mt-4"></div>
+        </div>
+    </div>
+
+    <script>
+        async function generateFromDocuments() {
+            const fileInput = document.getElementById('study-materials');
+            const files = fileInput.files;
+            
+            if (files.length === 0) {
+                alert('Please upload at least one document');
+                return;
+            }
+
+            try {
+                const formData = new FormData();
+                for (let i = 0; i < files.length; i++) {
+                    formData.append('files[]', files[i]);
+                }
+
+                const response = await fetch('http://localhost:5001/generate_from_documents', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText);
+                }
+                
+                const data = await response.json();
+                if (!data.problems || data.problems.length === 0) {
+                    throw new Error('No problems were generated. Please try again.');
+                }
+                displayPracticeTest(data.problems);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error generating practice test: ' + error.message);
+            }
+        }
+
+        async function generateFromTopic() {
+            const subject = document.getElementById('subject').value;
+            const topic = document.getElementById('topic').value;
+            const difficulty = document.getElementById('difficulty').value;
+
+            if (!topic) {
+                alert('Please enter a topic');
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:5001/generate_from_topic', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        subject,
+                        topic,
+                        difficulty
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText);
+                }
+                
+                const data = await response.json();
+                if (!data.problems || data.problems.length === 0) {
+                    throw new Error('No problems were generated. Please try again.');
+                }
+                displayPracticeTest(data.problems);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error generating practice test: ' + error.message);
+            }
+        }
+
+        function displayPracticeTest(problems) {
+            const container = document.getElementById('problems-container');
+            container.innerHTML = '';
+            
+            problems.forEach((problem, index) => {
+                const problemDiv = document.createElement('div');
+                problemDiv.className = 'bg-white rounded-lg shadow p-6 mb-4';
+                
+                problemDiv.innerHTML = `
+                    <div class="mb-4">
+                        <p class="text-lg font-semibold mb-2">Question ${index + 1}:</p>
+                        <p class="mb-4">${problem.question}</p>
+                        <input type="text" id="answer-${index}" placeholder="Enter your answer" 
+                               class="w-full p-2 border rounded mb-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <div id="feedback-${index}" class="mt-2"></div>
+                    </div>
+                `;
+                
+                container.appendChild(problemDiv);
+            });
+
+            // Add submit button
+            const submitButton = document.createElement('button');
+            submitButton.className = 'bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors';
+            submitButton.textContent = 'Submit Test';
+            submitButton.onclick = () => checkAnswers(problems);
+            container.appendChild(submitButton);
+
+            // Show the practice test section
+            document.getElementById('practice-test').classList.remove('hidden');
+            // Hide the results section
+            document.getElementById('test-results').classList.add('hidden');
+        }
+
+        async function checkAnswers(problems) {
+            const answers = [];
+            problems.forEach((_, index) => {
+                const answer = document.getElementById(`answer-${index}`).value;
+                answers.push(answer);
+            });
+
+            try {
+                const response = await fetch('http://localhost:5001/check_answers', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        answers: answers
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText);
+                }
+                
+                const data = await response.json();
+                if (!data.score || !data.feedback) {
+                    throw new Error('Invalid response format from server');
+                }
+                displayResults(data);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error checking answers: ' + error.message);
+            }
+        }
+
+        function displayResults(results) {
+            const resultsDiv = document.getElementById('test-results');
+            const scoreDisplay = document.getElementById('score-display');
+            const feedbackContainer = document.getElementById('feedback-container');
+            
+            // Display score
+            scoreDisplay.innerHTML = `
+                <p class="text-xl">Score: ${results.score.correct}/${results.score.total}</p>
+            `;
+            
+            // Display feedback for each question
+            feedbackContainer.innerHTML = '';
+            results.feedback.forEach((item, index) => {
+                const feedbackDiv = document.createElement('div');
+                feedbackDiv.className = 'mb-4 p-4 rounded ' + 
+                    (item.correct ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800');
+                feedbackDiv.innerHTML = `
+                    <p class="font-semibold">Question ${index + 1}:</p>
+                    <p>${item.message}</p>
+                `;
+                feedbackContainer.appendChild(feedbackDiv);
+            });
+            
+            // Show the results section
+            resultsDiv.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

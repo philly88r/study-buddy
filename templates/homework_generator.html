@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Homework Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .math-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 40px);
+            grid-template-rows: repeat(5, 40px);
+            gap: 2px;
+        }
+        .grid-cell {
+            width: 40px;
+            height: 40px;
+            border: 1px solid #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+        }
+        .grid-cell input {
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            border: none;
+            outline: none;
+            font-size: 1.2em;
+        }
+        .grid-cell input:focus {
+            background-color: #e8f0fe;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold text-center mb-8">Homework Generator</h1>
+        
+        <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+            <form id="uploadForm" class="space-y-6">
+                <!-- File Upload -->
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Upload Image:</label>
+                    <input type="file" 
+                           id="file" 
+                           name="file" 
+                           accept="image/*"
+                           class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <p class="mt-1 text-sm text-gray-500">Supported formats: JPG, PNG, GIF</p>
+                </div>
+
+                <!-- Grade Level Selection -->
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Grade Level:</label>
+                    <select id="grade" name="grade" class="w-full p-2 border rounded">
+                        <option value="">Select Grade</option>
+                        <option value="1">1st Grade</option>
+                        <option value="2">2nd Grade</option>
+                        <option value="3">3rd Grade</option>
+                        <option value="4">4th Grade</option>
+                        <option value="5">5th Grade</option>
+                        <option value="6">6th Grade</option>
+                        <option value="7">7th Grade</option>
+                        <option value="8">8th Grade</option>
+                        <option value="9">9th Grade</option>
+                        <option value="10">10th Grade</option>
+                        <option value="11">11th Grade</option>
+                        <option value="12">12th Grade</option>
+                    </select>
+                </div>
+
+                <button type="submit" 
+                        class="w-full bg-blue-500 text-white p-3 rounded hover:bg-blue-600 transition-colors">
+                    Generate Homework
+                </button>
+            </form>
+
+            <!-- Loading Indicator -->
+            <div id="loading" class="hidden mt-4 text-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p class="mt-2 text-gray-600">Processing your homework...</p>
+            </div>
+
+            <!-- Error Display -->
+            <div id="error-message" class="hidden mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded"></div>
+
+            <!-- Homework Display -->
+            <div id="homeworkContent" class="hidden mt-8">
+                <h2 class="text-2xl font-bold mb-4">Your Homework</h2>
+                <div id="questions" class="space-y-8"></div>
+                
+                <!-- Help Section -->
+                <div class="mt-8 p-6 bg-gray-50 rounded-lg">
+                    <h3 class="text-xl font-bold mb-4">Need Help?</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Select Question Number:</label>
+                            <select id="questionSelect" class="w-full p-2 border rounded">
+                                <!-- Options will be populated dynamically -->
+                            </select>
+                        </div>
+                        <button id="getHelp" 
+                                class="w-full bg-green-500 text-white p-3 rounded hover:bg-green-600 transition-colors">
+                            Get Step-by-Step Help
+                        </button>
+                    </div>
+                    
+                    <!-- Help Content -->
+                    <div id="helpContent" class="hidden mt-4">
+                        <h4 class="font-bold text-lg mb-2">Step-by-Step Solution:</h4>
+                        <div id="steps" class="p-4 bg-white rounded border"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentQuestions = [];
+
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const fileInput = document.getElementById('file');
+            const grade = document.getElementById('grade').value;
+
+            if (!fileInput.files[0] || !grade) {
+                showError('Please select a file and grade level');
+                return;
+            }
+
+            formData.append('file', fileInput.files[0]);
+            formData.append('grade', grade);
+
+            // Show loading
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('error-message').classList.add('hidden');
+            document.getElementById('homeworkContent').classList.add('hidden');
+            document.getElementById('helpContent').classList.add('hidden');
+
+            try {
+                const response = await fetch('/generate_homework', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const contentType = response.headers.get("content-type");
+                    if (contentType && contentType.includes("application/json")) {
+                        const data = await response.json();
+                        if (response.status === 429) {
+                            throw new Error(data.error || 'Rate limit exceeded. Please try again in about an hour.');
+                        } else {
+                            throw new Error(data.error || 'Failed to generate homework');
+                        }
+                    } else {
+                        throw new Error('Server error: Failed to generate homework');
+                    }
+                }
+
+                const data = await response.json();
+                
+                if (!data.questions || !Array.isArray(data.questions) || data.questions.length === 0) {
+                    throw new Error('No questions were found');
+                }
+
+                currentQuestions = data.questions;
+                displayHomework(data.questions);
+                updateQuestionSelector(data.questions);
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        });
+
+        function displayHomework(questions) {
+            const questionsDiv = document.getElementById('questions');
+            questionsDiv.innerHTML = '';
+
+            questions.forEach((question, index) => {
+                const questionElement = document.createElement('div');
+                questionElement.className = 'p-6 bg-gray-50 rounded-lg';
+                
+                const questionText = question.question ? question.question.trim() : 'Error: Question not available';
+                
+                questionElement.innerHTML = `
+                    <div class="mb-4">
+                        <p class="font-bold text-lg mb-2">Question ${index + 1}:</p>
+                        <p class="mb-4">${questionText}</p>
+                    </div>
+                    <div class="space-y-4">
+                        <!-- Simple Answer Box -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Your Answer:</label>
+                            <input type="text" class="w-full p-2 border rounded" placeholder="Enter your answer here">
+                        </div>
+                        
+                        <!-- Show Work Section -->
+                        <div class="mt-4">
+                            <button type="button" 
+                                    class="text-blue-600 hover:text-blue-800 font-medium"
+                                    onclick="toggleShowWork(${index})">
+                                + Show Work (Optional)
+                            </button>
+                            <div id="showWork_${index}" class="hidden mt-2 space-y-4">
+                                <!-- Work Type Toggle -->
+                                <div class="flex items-center space-x-4">
+                                    <label class="inline-flex items-center">
+                                        <input type="radio" name="workType_${index}" value="text" 
+                                               class="form-radio" checked
+                                               onchange="toggleWorkType(${index}, 'text')">
+                                        <span class="ml-2">Text</span>
+                                    </label>
+                                    <label class="inline-flex items-center">
+                                        <input type="radio" name="workType_${index}" value="grid" 
+                                               class="form-radio"
+                                               onchange="toggleWorkType(${index}, 'grid')">
+                                        <span class="ml-2">Math Grid</span>
+                                    </label>
+                                </div>
+                                
+                                <!-- Text Work Area -->
+                                <div id="textWork_${index}">
+                                    <textarea class="w-full p-2 border rounded resize-y" rows="4" 
+                                              placeholder="Show your work here..."></textarea>
+                                </div>
+                                
+                                <!-- Grid Work Area -->
+                                <div id="gridWork_${index}" class="hidden">
+                                    <div class="math-grid">
+                                        ${Array(50).fill(0).map((_, i) => `
+                                            <div class="grid-cell">
+                                                <input type="text" maxlength="1" class="math-input" data-index="${i}">
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                questionsDiv.appendChild(questionElement);
+                setupMathGrid(index);
+            });
+
+            document.getElementById('homeworkContent').classList.remove('hidden');
+        }
+
+        function setupMathGrid(questionIndex) {
+            const grid = document.getElementById(`gridWork_${questionIndex}`);
+            if (!grid) return;
+
+            const inputs = grid.getElementsByClassName('math-input');
+            
+            Array.from(inputs).forEach(input => {
+                // Move to next input on keyup
+                input.addEventListener('keyup', function(e) {
+                    if (this.value.length === 1) {
+                        const nextIndex = parseInt(this.dataset.index) + 1;
+                        const nextInput = grid.querySelector(`input[data-index="${nextIndex}"]`);
+                        if (nextInput) {
+                            nextInput.focus();
+                        }
+                    }
+                });
+                
+                // Allow only numbers and basic math symbols
+                input.addEventListener('input', function(e) {
+                    this.value = this.value.replace(/[^0-9+\-*/=.]/, '');
+                });
+            });
+        }
+
+        function toggleShowWork(questionIndex) {
+            const workArea = document.getElementById(`showWork_${questionIndex}`);
+            const button = workArea.previousElementSibling;
+            
+            if (workArea.classList.contains('hidden')) {
+                workArea.classList.remove('hidden');
+                button.textContent = '- Hide Work';
+            } else {
+                workArea.classList.add('hidden');
+                button.textContent = '+ Show Work (Optional)';
+            }
+        }
+
+        function toggleWorkType(questionIndex, type) {
+            const textArea = document.getElementById(`textWork_${questionIndex}`);
+            const gridArea = document.getElementById(`gridWork_${questionIndex}`);
+            
+            if (type === 'text') {
+                textArea.classList.remove('hidden');
+                gridArea.classList.add('hidden');
+            } else {
+                textArea.classList.add('hidden');
+                gridArea.classList.remove('hidden');
+            }
+        }
+
+        function updateQuestionSelector(questions) {
+            const select = document.getElementById('questionSelect');
+            select.innerHTML = '<option value="">Select a question</option>';
+            
+            questions.forEach((_, index) => {
+                const option = document.createElement('option');
+                option.value = index + 1;
+                option.textContent = `Question ${index + 1}`;
+                select.appendChild(option);
+            });
+        }
+
+        document.getElementById('getHelp').addEventListener('click', async function() {
+            const questionNumber = document.getElementById('questionSelect').value;
+            
+            if (!questionNumber) {
+                showError('Please select a question');
+                return;
+            }
+
+            const selectedQuestion = currentQuestions[questionNumber - 1];
+            if (!selectedQuestion) {
+                showError('Question not found');
+                return;
+            }
+
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('error-message').classList.add('hidden');
+            document.getElementById('helpContent').classList.add('hidden');
+
+            try {
+                const response = await fetch('/get_homework_help', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        question: selectedQuestion.question,
+                        questionNumber: questionNumber,
+                        grade: document.getElementById('grade').value
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to get help');
+                }
+
+                displayHelp(data.steps);
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        });
+
+        function displayHelp(steps) {
+            const stepsDiv = document.getElementById('steps');
+            if (typeof steps === 'string') {
+                steps = steps.split('\n').filter(step => step.trim());
+            }
+            
+            stepsDiv.innerHTML = steps.map((step, index) => `
+                <div class="mb-3">
+                    <span class="font-bold">Step ${index + 1}:</span>
+                    <span>${step}</span>
+                </div>
+            `).join('');
+
+            document.getElementById('helpContent').classList.remove('hidden');
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+            
+            if (message.includes('rate limit')) {
+                errorDiv.innerHTML = `
+                    <p class="mb-2">${message}</p>
+                    <p class="text-sm">The AI service is currently at capacity. This typically happens when:</p>
+                    <ul class="list-disc list-inside text-sm ml-4">
+                        <li>There are too many requests in a short time</li>
+                        <li>The service is experiencing high demand</li>
+                    </ul>
+                    <p class="text-sm mt-2">Please try again later.</p>
+                `;
+            }
+            
+            errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    </script>
+</body>
+</html>

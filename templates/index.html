@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Tutor - Your Personal Learning Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-indigo-600 text-white shadow-lg">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center space-x-8">
+                    <a href="/" class="text-2xl font-bold">AI Tutor</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- Header -->
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-indigo-600 mb-2">Welcome to AI Tutor</h1>
+            <p class="text-gray-600">Your personal learning assistant powered by artificial intelligence</p>
+        </header>
+
+        <!-- Features Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Flashcards -->
+            <a href="/flashcards" class="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-blue-100 p-3 rounded-lg">
+                        <i class="fas fa-clone text-2xl text-blue-600"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-semibold text-gray-800">Flashcards</h2>
+                        <p class="text-gray-600">Create and study with AI-powered flashcards</p>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Practice by Topic -->
+            <a href="/practice-by-topic" class="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-green-100 p-3 rounded-lg">
+                        <i class="fas fa-book text-2xl text-green-600"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-semibold text-gray-800">Practice by Topic</h2>
+                        <p class="text-gray-600">Practice questions on specific topics</p>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Homework Generator -->
+            <a href="/homework-generator" class="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-purple-100 p-3 rounded-lg">
+                        <i class="fas fa-pencil-alt text-2xl text-purple-600"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-semibold text-gray-800">Homework Generator</h2>
+                        <p class="text-gray-600">Upload and get help with homework problems</p>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Practice by Upload -->
+            <a href="/practice-by-upload" class="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-purple-100 p-3 rounded-lg">
+                        <i class="fas fa-upload text-2xl text-purple-600"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-semibold text-gray-800">Practice by Upload</h2>
+                        <p class="text-gray-600">Upload study materials to generate practice questions</p>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Homework Checker -->
+            <a href="/homework-checker" class="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-red-100 p-3 rounded-lg">
+                        <i class="fas fa-check-circle text-2xl text-red-600"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-semibold text-gray-800">Homework Checker</h2>
+                        <p class="text-gray-600">Check your homework answers and get feedback</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Footer -->
+        <footer class="mt-12 text-center text-gray-600">
+            <p>&copy; 2024 AI Tutor. All rights reserved.</p>
+        </footer>
+    </div>
+</body>
+</html>

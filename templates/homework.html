@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Tutor - Homework Helper</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .grid-paper {
+            background-size: 40px 40px;
+            background-image:
+                linear-gradient(to right, #e5e7eb 1px, transparent 1px),
+                linear-gradient(to bottom, #e5e7eb 1px, transparent 1px);
+            background-color: white;
+        }
+        .show-work-area {
+            min-height: 300px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-indigo-600 text-white shadow-lg">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center space-x-8">
+                    <a href="/" class="text-2xl font-bold">AI Tutor</a>
+                    <div class="hidden md:flex space-x-4">
+                        <a href="/" class="hover:text-indigo-200">Home</a>
+                        <a href="#" class="hover:text-indigo-200 font-semibold">Homework Help</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- Header -->
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-indigo-600 mb-2">Homework Helper</h1>
+            <p class="text-gray-600">Enter your homework problems, get step-by-step guidance, and check your work</p>
+        </header>
+
+        <!-- Problems Section -->
+        <div id="problemsSection" class="space-y-6">
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">Homework Problems</h2>
+                <div id="problemsList" class="space-y-8">
+                    <!-- Add Problem Button -->
+                    <button id="addProblemBtn" class="w-full bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700 transition-colors">
+                        <i class="fas fa-plus mr-2"></i>Add Problem
+                    </button>
+                </div>
+                <!-- Check Answers Button -->
+                <button id="checkAnswersBtn" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors mt-6">
+                    Check Answers
+                </button>
+            </div>
+        </div>
+
+        <!-- Problem Template (Hidden) -->
+        <template id="problemTemplate">
+            <div class="problem-container border rounded-lg p-6 space-y-4">
+                <div class="problem-header flex justify-between items-start">
+                    <div class="flex-grow">
+                        <h3 class="text-xl font-semibold text-gray-800">Problem <span class="problem-number"></span></h3>
+                        <textarea class="problem-text mt-2 text-gray-700 w-full p-2 border rounded" rows="3" placeholder="Enter your problem here..."></textarea>
+                    </div>
+                    <button class="delete-problem-btn text-red-600 hover:text-red-700 ml-4">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+
+                <!-- Answer Section -->
+                <div class="answer-section mt-4">
+                    <label class="block text-gray-700 font-medium mb-2">Your Answer:</label>
+                    <input type="text" class="answer-input w-full p-2 border rounded-lg" placeholder="Enter your answer...">
+                    <div class="feedback mt-2 hidden"></div>
+                </div>
+            </div>
+        </template>
+
+        <!-- Results Modal -->
+        <div id="resultsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
+            <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold text-gray-800">Results</h3>
+                    <button class="text-gray-500 hover:text-gray-700" onclick="closeResultsModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="resultsContent" class="space-y-4">
+                    <!-- Results will be inserted here -->
+                </div>
+            </div>
+        </div>
+
+        <script>
+            let problemCount = 0;
+
+            // Add Problem Button
+            document.getElementById('addProblemBtn').addEventListener('click', function() {
+                addProblem();
+            });
+
+            function addProblem() {
+                problemCount++;
+                const template = document.getElementById('problemTemplate');
+                const clone = template.content.cloneNode(true);
+                
+                // Set problem number
+                clone.querySelector('.problem-number').textContent = problemCount;
+                
+                // Add delete button handler
+                clone.querySelector('.delete-problem-btn').addEventListener('click', function(e) {
+                    const container = e.target.closest('.problem-container');
+                    container.remove();
+                    updateProblemNumbers();
+                });
+                
+                document.getElementById('problemsList').insertBefore(
+                    clone, 
+                    document.getElementById('addProblemBtn')
+                );
+            }
+
+            function updateProblemNumbers() {
+                const problems = document.querySelectorAll('.problem-container');
+                problems.forEach((problem, index) => {
+                    problem.querySelector('.problem-number').textContent = index + 1;
+                });
+                problemCount = problems.length;
+            }
+
+            // Check Answers Button
+            document.getElementById('checkAnswersBtn').addEventListener('click', async function() {
+                const problems = [];
+                document.querySelectorAll('.problem-container').forEach(container => {
+                    problems.push({
+                        question: container.querySelector('.problem-text').value,
+                        answer: container.querySelector('.answer-input').value
+                    });
+                });
+
+                try {
+                    const response = await fetch('/analyze_homework', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ problems: problems })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    displayResults(data);
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error checking answers: ' + error.message);
+                }
+            });
+
+            function displayResults(data) {
+                const resultsContent = document.getElementById('resultsContent');
+                resultsContent.innerHTML = '';
+
+                data.results.forEach((result, index) => {
+                    const resultDiv = document.createElement('div');
+                    resultDiv.className = 'border-b pb-4 mb-4';
+                    
+                    // Create a status icon based on correctness
+                    const statusIcon = result.is_correct ? 
+                        '<i class="fas fa-check-circle text-green-500 mr-2"></i>' : 
+                        '<i class="fas fa-times-circle text-red-500 mr-2"></i>';
+                    
+                    resultDiv.innerHTML = `
+                        <div class="flex items-start">
+                            ${statusIcon}
+                            <div class="flex-grow">
+                                <h4 class="font-semibold text-lg">Problem ${index + 1}</h4>
+                                <p class="mt-2 text-gray-700"><strong>Question:</strong> ${result.question}</p>
+                                <p class="mt-1 text-gray-700"><strong>Your answer:</strong> ${result.student_answer}</p>
+                                <p class="mt-1 text-gray-700"><strong>Correct answer:</strong> ${result.correct_answer}</p>
+                                ${result.explanation ? `
+                                    <div class="mt-2 p-3 bg-gray-50 rounded-lg">
+                                        <p class="text-gray-700"><strong>Explanation:</strong> ${result.explanation}</p>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                    resultsContent.appendChild(resultDiv);
+                });
+
+                document.getElementById('resultsModal').classList.remove('hidden');
+                document.getElementById('resultsModal').classList.add('flex');
+            }
+
+            function closeResultsModal() {
+                document.getElementById('resultsModal').classList.add('hidden');
+                document.getElementById('resultsModal').classList.remove('flex');
+            }
+
+            // Add initial problem
+            addProblem();
+        </script>
+    </div>
+</body>
+</html>

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Homework Helper</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold text-center mb-8">Homework Helper</h1>
+        
+        <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-6">
+            <!-- Upload Form -->
+            <form id="uploadForm" class="space-y-6">
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <input type="file" 
+                           id="file" 
+                           name="file"
+                           accept="image/*"
+                           class="hidden">
+                    <label for="file" class="cursor-pointer">
+                        <div class="space-y-2">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <div class="text-gray-600">
+                                <span class="font-medium">Click to upload</span> or drag and drop
+                            </div>
+                            <p class="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
+                        </div>
+                    </label>
+                </div>
+            </form>
+
+            <!-- Loading Indicator -->
+            <div id="loading" class="hidden mt-4">
+                <div class="flex items-center justify-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    <span class="ml-2 text-gray-600">Analyzing homework...</span>
+                </div>
+            </div>
+
+            <!-- Error Display -->
+            <div id="error" class="hidden mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded"></div>
+
+            <!-- Problems Display -->
+            <div id="problemsContainer" class="hidden mt-8">
+                <h2 class="text-2xl font-bold mb-6">Homework Problems</h2>
+                <form id="problemsForm" class="space-y-8">
+                    <div id="problems" class="space-y-8"></div>
+                    
+                    <div class="flex justify-between items-center mt-6">
+                        <button type="submit" class="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600 transition-colors">
+                            Check Answers
+                        </button>
+                        <button type="button" id="showAnswers" class="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors">
+                            Show Answers
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // File Upload Handling
+        const uploadForm = document.getElementById('uploadForm');
+        const fileInput = document.getElementById('file');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const problemsContainer = document.getElementById('problemsContainer');
+        const problems = document.getElementById('problems');
+        let currentProblems = [];
+
+        // Drag and drop functionality
+        uploadForm.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadForm.classList.add('border-blue-500');
+        });
+
+        uploadForm.addEventListener('dragleave', () => {
+            uploadForm.classList.remove('border-blue-500');
+        });
+
+        uploadForm.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadForm.classList.remove('border-blue-500');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showError('Please upload an image file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Show loading state
+            loading.classList.remove('hidden');
+            error.classList.add('hidden');
+            problemsContainer.classList.add('hidden');
+
+            fetch('/homework_upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                currentProblems = data.problems;
+                displayProblems(data.problems);
+            })
+            .catch(err => {
+                showError(err.message);
+            })
+            .finally(() => {
+                loading.classList.add('hidden');
+            });
+        }
+
+        function displayProblems(problems) {
+            const problemsContainer = document.getElementById('problems');
+            problemsContainer.innerHTML = '';
+            
+            problems.forEach((problem, index) => {
+                const problemDiv = document.createElement('div');
+                problemDiv.className = 'p-6 bg-gray-50 rounded-lg';
+                problemDiv.innerHTML = `
+                    <div class="mb-4">
+                        <p class="font-bold text-lg mb-2">Question ${index + 1}:</p>
+                        <p class="mb-4">${problem.question}</p>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-gray-700 font-medium mb-2">Your Answer:</label>
+                                <input type="text" 
+                                       name="answer_${index}" 
+                                       class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
+                                       placeholder="Enter your answer">
+                            </div>
+                            
+                            <div>
+                                <div class="flex items-center space-x-4 mb-2">
+                                    <label class="block text-gray-700 font-medium">Show Your Work:</label>
+                                    <div class="flex items-center space-x-2">
+                                        <input type="radio" 
+                                               name="work_type_${index}" 
+                                               value="text" 
+                                               id="text_${index}" 
+                                               checked>
+                                        <label for="text_${index}">Text</label>
+                                        
+                                        <input type="radio" 
+                                               name="work_type_${index}" 
+                                               value="grid" 
+                                               id="grid_${index}">
+                                        <label for="grid_${index}">Grid</label>
+                                    </div>
+                                </div>
+                                
+                                <div class="work-area work-text-${index}">
+                                    <textarea name="work_${index}"
+                                              class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
+                                              rows="3"
+                                              placeholder="Show your work here..."></textarea>
+                                </div>
+                                
+                                <div class="work-area work-grid-${index} hidden">
+                                    <div class="grid-container border rounded p-2" 
+                                         style="background-size: 20px 20px; 
+                                                background-image: linear-gradient(to right, #e5e7eb 1px, transparent 1px),
+                                                                linear-gradient(to bottom, #e5e7eb 1px, transparent 1px);">
+                                        <textarea name="work_grid_${index}"
+                                                  class="w-full h-32 p-2 bg-transparent"
+                                                  placeholder="Use this grid area to show your work..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="correct-answer hidden mt-4 p-4 bg-green-50 rounded">
+                        <p class="font-semibold text-green-800">Correct Answer:</p>
+                        <p class="mt-1">${problem.answer || 'Not provided'}</p>
+                    </div>
+
+                    <div class="feedback hidden mt-4 p-4 rounded"></div>
+                `;
+                
+                problemsContainer.appendChild(problemDiv);
+                
+                // Add event listeners for work type toggle
+                const textRadio = problemDiv.querySelector(`#text_${index}`);
+                const gridRadio = problemDiv.querySelector(`#grid_${index}`);
+                const textArea = problemDiv.querySelector(`.work-text-${index}`);
+                const gridArea = problemDiv.querySelector(`.work-grid-${index}`);
+                
+                textRadio.addEventListener('change', () => {
+                    textArea.classList.remove('hidden');
+                    gridArea.classList.add('hidden');
+                });
+                
+                gridRadio.addEventListener('change', () => {
+                    gridArea.classList.remove('hidden');
+                    textArea.classList.add('hidden');
+                });
+            });
+
+            document.getElementById('problemsContainer').classList.remove('hidden');
+        }
+
+        // Handle form submission
+        document.getElementById('problemsForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const answers = currentProblems.map((problem, index) => {
+                const workType = document.querySelector(`input[name="work_type_${index}"]:checked`).value;
+                return {
+                    question: problem.question,
+                    correctAnswer: problem.answer,
+                    userAnswer: document.querySelector(`[name="answer_${index}"]`).value,
+                    work: workType === 'text' 
+                        ? document.querySelector(`[name="work_${index}"]`).value
+                        : document.querySelector(`[name="work_grid_${index}"]`).value,
+                    workType: workType
+                };
+            });
+
+            // Check answers and show feedback
+            answers.forEach((answer, index) => {
+                const feedbackDiv = document.querySelectorAll('.feedback')[index];
+                const isCorrect = checkAnswer(answer.userAnswer, answer.correctAnswer);
+                
+                feedbackDiv.classList.remove('hidden', 'bg-green-100', 'bg-red-100');
+                feedbackDiv.classList.add(isCorrect ? 'bg-green-100' : 'bg-red-100');
+                
+                let feedbackContent = `
+                    <p class="font-semibold ${isCorrect ? 'text-green-800' : 'text-red-800'}">
+                        ${isCorrect ? 'Correct!' : 'Incorrect'}
+                    </p>`;
+                
+                if (answer.work) {
+                    feedbackContent += `
+                        <div class="mt-2">
+                            <p class="font-medium">Your Work (${answer.workType}):</p>
+                            <p class="mt-1 whitespace-pre-wrap">${answer.work}</p>
+                        </div>`;
+                }
+                
+                feedbackDiv.innerHTML = feedbackContent;
+            });
+        });
+
+        // Toggle show/hide answers
+        document.getElementById('showAnswers').addEventListener('click', function() {
+            document.querySelectorAll('.correct-answer').forEach(answer => {
+                answer.classList.toggle('hidden');
+            });
+            this.textContent = this.textContent === 'Show Answers' ? 'Hide Answers' : 'Show Answers';
+        });
+
+        function checkAnswer(userAnswer, correctAnswer) {
+            if (!correctAnswer) return true; // If no correct answer provided, accept any answer
+            return userAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+        }
+
+        function showError(message) {
+            error.textContent = message;
+            error.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

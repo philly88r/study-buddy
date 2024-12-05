@@ -1,0 +1,4 @@
+Solve the following quadratic equation:
+x² + 5x + 6 = 0
+
+Show your work using the quadratic formula.
