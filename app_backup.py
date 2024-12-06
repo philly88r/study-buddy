@@ -162,7 +162,9 @@ else:
     print("OpenAI API key found")
 
 try:
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    client = OpenAI(
+        api_key=OPENAI_API_KEY
+    )
     # Test the API key with the new client format
     response = client.models.list()
     print("OpenAI API connection successful")
@@ -1806,9 +1808,11 @@ def validate_configuration():
         print("ERROR: OPENAI_API_KEY not found in environment variables")
     else:
         try:
-            test_client = OpenAI(api_key=OPENAI_API_KEY)
+            test_client = OpenAI(
+                api_key=OPENAI_API_KEY
+            )
             # Simple API test
-            test_client.models.list()
+            response = test_client.models.list()
             config_status['openai_api'] = True
             print("✓ OpenAI API configuration validated")
         except Exception as e:

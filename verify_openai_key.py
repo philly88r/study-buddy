@@ -1,4 +1,4 @@
-import openai
+from openai import OpenAI
 from dotenv import load_dotenv
 import os
 
@@ -8,20 +8,20 @@ load_dotenv()
 # Get API key from environment
 api_key = os.getenv('OPENAI_API_KEY')
 
-# Initialize OpenAI client
-openai.api_key = api_key
+def verify_openai_key(api_key):
+    try:
+        client = OpenAI(
+            api_key=api_key
+        )
+        # Test the API key with a simple request
+        response = client.models.list()
+        return True
+    except Exception as e:
+        print(f"Error verifying OpenAI API key: {str(e)}")
+        return False
 
-try:
-    # Make a simple request to verify the API key
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "system", "content": "Say hello"}],
-        max_tokens=5
-    )
+# Verify the API key
+if verify_openai_key(api_key):
     print("API Key is valid.")
-except openai.error.AuthenticationError:
+else:
     print("Invalid API Key.")
-except openai.error.OpenAIError as e:
-    print(f"An OpenAI error occurred: {e}")
-except Exception as e:
-    print(f"An error occurred: {e}")

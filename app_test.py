@@ -31,9 +31,10 @@ app.config['DEBUG'] = True
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # Initialize OpenAI client
-openai.api_key = os.getenv('OPENAI_API_KEY')
-if not openai.api_key:
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+if not OPENAI_API_KEY:
     logger.error("OpenAI API key not found in environment variables!")
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Rate limiting configuration
 RATE_LIMIT_WINDOW = 3600  # 1 hour in seconds
@@ -64,7 +65,7 @@ def encode_image(image_file):
 def extract_questions_from_image(image_base64, grade_level):
     """Extract questions from image using OpenAI's Vision API"""
     try:
-        response = openai.ChatCompletion.create(
+        response = openai_client.ChatCompletion.create(
             model="gpt-4-vision-preview",
             messages=[
                 {
@@ -112,7 +113,7 @@ def extract_questions_from_image(image_base64, grade_level):
 def generate_step_by_step_help(question, grade_level):
     """Generate step-by-step help for a question using OpenAI"""
     try:
-        response = openai.ChatCompletion.create(
+        response = openai_client.ChatCompletion.create(
             model="gpt-4",
             messages=[
                 {
