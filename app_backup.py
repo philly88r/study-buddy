@@ -163,8 +163,8 @@ else:
 
 try:
     client = OpenAI(api_key=OPENAI_API_KEY)
-    # Test the API key
-    client.models.list()
+    # Test the API key with the new client format
+    response = client.models.list()
     print("OpenAI API connection successful")
 except Exception as e:
     print(f"ERROR initializing OpenAI client: {str(e)}")
