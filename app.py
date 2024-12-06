@@ -24,7 +24,9 @@ if sys.stdout.encoding != 'utf-8':
 load_dotenv()
 
 # Initialize OpenAI client
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+client = OpenAI(
+    api_key=os.getenv('OPENAI_API_KEY')
+)
 
 # Initialize Flask app
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
