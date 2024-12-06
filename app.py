@@ -12,7 +12,6 @@ from PIL import Image
 import time
 import threading
 import hashlib
-from openai import OpenAI
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -22,11 +21,6 @@ if sys.stdout.encoding != 'utf-8':
 
 # Load environment variables
 load_dotenv()
-
-# Initialize OpenAI client
-client = OpenAI(
-    api_key=os.getenv('OPENAI_API_KEY')
-)
 
 # Initialize Flask app
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
@@ -177,6 +171,24 @@ def homework_generator():
     return render_template('homework_generator.html')
 
 # Main routes
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+if not OPENAI_API_KEY:
+    print("OpenAI API key not found in environment variables!")
+
+def make_openai_request(endpoint, payload):
+    """Make a request to OpenAI API"""
+    headers = {
+        'Authorization': f'Bearer {OPENAI_API_KEY}',
+        'Content-Type': 'application/json'
+    }
+    response = requests.post(f'https://api.openai.com/v1/{endpoint}', 
+                           headers=headers, 
+                           json=payload)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        raise Exception(f"OpenAI API request failed with status {response.status_code}: {response.text}")
+
 @app.route('/generate_flashcards', methods=['POST'])
 def generate_flashcards():
     try:
@@ -195,9 +207,9 @@ def generate_flashcards():
             base64_image = base64.b64encode(image_bytes).decode('utf-8')
             
             # First, use GPT-4 Vision to extract text from the image with emphasis on finding all Q&A pairs
-            vision_response = client.chat.completions.create(
-                model="gpt-4-vision-preview",
-                messages=[
+            payload = {
+                "model": "gpt-4-vision-preview",
+                "messages": [
                     {
                         "role": "user",
                         "content": [
@@ -214,11 +226,12 @@ def generate_flashcards():
                         ]
                     }
                 ],
-                max_tokens=1500
-            )
+                "max_tokens": 1500
+            }
+            vision_response = make_openai_request('chat/completions', payload)
             
             # Extract the text content from the vision response
-            extracted_text = vision_response.choices[0].message.content
+            extracted_text = vision_response['choices'][0]['message']['content']
             print(f"Extracted text from image: {extracted_text}")
             
             # For exact questions, parse the extracted text directly
@@ -246,18 +259,19 @@ def generate_flashcards():
                 Make sure each Q&A pair is on separate lines."""
                 
                 # Generate similar flashcards using the extracted text
-                flashcard_response = client.chat.completions.create(
-                    model="gpt-4-turbo-preview",
-                    messages=[
+                payload = {
+                    "model": "gpt-4-turbo-preview",
+                    "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": f"Original content to base flashcards on:\n\n{extracted_text}"}
                     ],
-                    temperature=0.8,
-                    max_tokens=2500
-                )
+                    "temperature": 0.8,
+                    "max_tokens": 2500
+                }
+                flashcard_response = make_openai_request('chat/completions', payload)
                 
                 # Get the generated flashcards
-                raw_flashcards = flashcard_response.choices[0].message.content
+                raw_flashcards = flashcard_response['choices'][0]['message']['content']
                 print(f"Generated similar flashcards: {raw_flashcards}")
                 
                 # Parse the flashcards
@@ -367,30 +381,18 @@ def generate_test():
         return jsonify({'error': 'Missing required fields'}), 400
 
     try:
-        prompt = f"""Generate {question_count} practice questions for {subject} at grade {grade} level, focusing on {topic}.
-        For each question:
-        1. Provide a clear question
-        2. Provide the correct answer
-        3. Include a brief explanation
-
-        Format your response as a JSON array with objects containing:
-        {{
-            "question": "the question text",
-            "answer": "the correct answer",
-            "explanation": "explanation of the answer"
-        }}"""
-
-        response = client.chat.completions.create(
-            model="gpt-4-turbo-preview",
-            messages=[
+        payload = {
+            "model": "gpt-4-turbo-preview",
+            "messages": [
                 {"role": "system", "content": "You are a professional educator creating practice tests."},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": f"Generate {question_count} practice questions for {subject} at grade {grade} level, focusing on {topic}.\nFor each question:\n1. Provide a clear question\n2. Provide the correct answer\n3. Include a brief explanation\n\nFormat your response as a JSON array with objects containing:\n{{\n    \"question\": \"the question text\",\n    \"answer\": \"the correct answer\",\n    \"explanation\": \"explanation of the answer\"\n}}"}
             ],
-            response_format={ "type": "json_object" }
-        )
+            "response_format": "json_object"
+        }
+        response = make_openai_request('chat/completions', payload)
         
         # Parse the response and ensure it's in the correct format
-        content = response.choices[0].message.content
+        content = response['choices'][0]['message']['content']
         questions_data = json.loads(content)
         
         # Ensure we have the expected structure
@@ -421,9 +423,9 @@ def generate_upload_test():
         file_ext = file.filename.rsplit('.', 1)[1].lower()
         
         # Create the API request
-        response = client.chat.completions.create(
-            model="gpt-4-vision-preview",
-            messages=[
+        payload = {
+            "model": "gpt-4-vision-preview",
+            "messages": [
                 {
                     "role": "system",
                     "content": "You are a practice problem generator. Generate problems that exactly match the format and style of the given problems. Use the same type of questions but with different numbers or values."
@@ -444,10 +446,11 @@ def generate_upload_test():
                     ]
                 }
             ],
-            max_tokens=2048
-        )
+            "max_tokens": 2048
+        }
+        response = make_openai_request('chat/completions', payload)
         
-        content = response.choices[0].message.content
+        content = response['choices'][0]['message']['content']
         print("GPT Response:", content)  # Debug print
         
         # Parse the response into questions and answers
@@ -508,9 +511,9 @@ def check_homework():
         file_ext = file.filename.rsplit('.', 1)[1].lower()
         
         # Create the API request
-        response = client.chat.completions.create(
-            model="gpt-4-vision-preview",
-            messages=[
+        payload = {
+            "model": "gpt-4-vision-preview",
+            "messages": [
                 {
                     "role": "user",
                     "content": [
@@ -527,10 +530,11 @@ def check_homework():
                     ]
                 }
             ],
-            max_tokens=2048
-        )
+            "max_tokens": 2048
+        }
+        response = make_openai_request('chat/completions', payload)
         
-        feedback = response.choices[0].message.content
+        feedback = response['choices'][0]['message']['content']
         return jsonify({'feedback': feedback})
 
     except Exception as e:
@@ -555,9 +559,9 @@ def generate_homework():
         file_ext = file.filename.rsplit('.', 1)[1].lower()
         
         # Create the API request
-        response = client.chat.completions.create(
-            model="gpt-4-vision-preview",
-            messages=[
+        payload = {
+            "model": "gpt-4-vision-preview",
+            "messages": [
                 {
                     "role": "system",
                     "content": "You are a homework extractor. Extract problems exactly as they appear in the image."
@@ -578,10 +582,11 @@ def generate_homework():
                     ]
                 }
             ],
-            max_tokens=2048
-        )
+            "max_tokens": 2048
+        }
+        response = make_openai_request('chat/completions', payload)
         
-        content = response.choices[0].message.content
+        content = response['choices'][0]['message']['content']
         print("GPT Response:", content)  # Debug print
         
         # Parse the response into questions
@@ -622,9 +627,9 @@ def get_homework_help():
     question = data['question']
     question_number = data.get('questionNumber', 'unknown')
     try:
-        response = client.chat.completions.create(
-            model="gpt-4-turbo-preview",
-            messages=[
+        payload = {
+            "model": "gpt-4-turbo-preview",
+            "messages": [
                 {
                     "role": "system",
                     "content": "You are a step-by-step solution provider. Provide detailed steps to solve the given problem."
@@ -634,10 +639,11 @@ def get_homework_help():
                     "content": f"Provide a step-by-step solution for this problem: {question}"
                 }
             ],
-            max_tokens=2048
-        )
+            "max_tokens": 2048
+        }
+        response = make_openai_request('chat/completions', payload)
         
-        steps = response.choices[0].message.content
+        steps = response['choices'][0]['message']['content']
         print(f"Steps for Question {question_number}:", steps)  # Debug print
         return jsonify({'steps': steps})
 

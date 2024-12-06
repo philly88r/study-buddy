@@ -1,7 +1,7 @@
 import unittest
 from flask import Flask, render_template
 import os
-from openai import OpenAI
+import requests
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -23,15 +23,17 @@ class TestApp(unittest.TestCase):
             return render_template('study_guide_test.html')
             
         self.client = self.app.test_client()
-        self.openai_client = OpenAI(
-            api_key=os.getenv('OPENAI_API_KEY')
-        )
+        self.api_key = os.getenv('OPENAI_API_KEY')
 
     def test_openai_connection(self):
         """Test that we can connect to OpenAI API"""
         try:
-            response = self.openai_client.models.list()
-            self.assertIsNotNone(response)
+            headers = {
+                'Authorization': f'Bearer {self.api_key}',
+                'Content-Type': 'application/json'
+            }
+            response = requests.get('https://api.openai.com/v1/models', headers=headers)
+            self.assertEqual(response.status_code, 200)
         except Exception as e:
             self.fail(f"OpenAI connection failed: {str(e)}")
 

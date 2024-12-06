@@ -12,7 +12,6 @@ from PIL import Image
 import time
 import threading
 import hashlib
-from openai import OpenAI
 
 # Set console encoding to UTF-8
 if sys.stdout.encoding != 'utf-8':
@@ -25,8 +24,19 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 
-# Initialize OpenAI client
-client = OpenAI(api_key=OPENAI_API_KEY)
+def make_openai_request(endpoint, payload):
+    """Make a request to OpenAI API"""
+    headers = {
+        'Authorization': f'Bearer {OPENAI_API_KEY}',
+        'Content-Type': 'application/json'
+    }
+    response = requests.post(f'https://api.openai.com/v1/{endpoint}', 
+                           headers=headers, 
+                           json=payload)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        raise Exception(f"OpenAI API request failed with status {response.status_code}: {response.text}")
 
 # Initialize Flask app
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
@@ -74,15 +84,15 @@ def generate_flashcards():
 
     topic = data['topic']
     try:
-        response = client.chat.completions.create(
-            model="gpt-4-turbo-preview",
-            messages=[
+        payload = {
+            "model": "gpt-4-turbo-preview",
+            "messages": [
                 {"role": "system", "content": "Generate 5 flashcards for studying. Each flashcard should have a front (question/term) and back (answer/definition)."},
                 {"role": "user", "content": f"Generate flashcards for studying {topic}"}
             ]
-        )
-        
-        flashcards = response.choices[0].message.content
+        }
+        response = make_openai_request('chat/completions', payload)
+        flashcards = response['choices'][0]['message']['content']
         return jsonify({'flashcards': flashcards})
     
     except Exception as e:
@@ -97,15 +107,15 @@ def generate_test():
 
     topic = data['topic']
     try:
-        response = client.chat.completions.create(
-            model="gpt-4-turbo-preview",
-            messages=[
+        payload = {
+            "model": "gpt-4-turbo-preview",
+            "messages": [
                 {"role": "system", "content": "Generate 5 practice questions with answers for the given topic."},
                 {"role": "user", "content": f"Generate practice questions for {topic}"}
             ]
-        )
-        
-        questions = response.choices[0].message.content
+        }
+        response = make_openai_request('chat/completions', payload)
+        questions = response['choices'][0]['message']['content']
         return jsonify({'questions': questions})
     
     except Exception as e:
@@ -130,9 +140,9 @@ def generate_upload_test():
         file_ext = file.filename.rsplit('.', 1)[1].lower()
         
         # Create the API request
-        response = client.chat.completions.create(
-            model="gpt-4-vision-preview",
-            messages=[
+        payload = {
+            "model": "gpt-4-vision-preview",
+            "messages": [
                 {
                     "role": "system",
                     "content": "You are a practice problem generator. Generate problems that exactly match the format and style of the given problems. Use the same type of questions but with different numbers or values."
@@ -153,10 +163,11 @@ def generate_upload_test():
                     ]
                 }
             ],
-            max_tokens=2048
-        )
+            "max_tokens": 2048
+        }
+        response = make_openai_request('chat/completions', payload)
         
-        content = response.choices[0].message.content
+        content = response['choices'][0]['message']['content']
         print("GPT Response:", content)  # Debug print
         
         # Parse the response into questions and answers
@@ -217,9 +228,9 @@ def check_homework():
         file_ext = file.filename.rsplit('.', 1)[1].lower()
         
         # Create the API request
-        response = client.chat.completions.create(
-            model="gpt-4-vision-preview",
-            messages=[
+        payload = {
+            "model": "gpt-4-vision-preview",
+            "messages": [
                 {
                     "role": "user",
                     "content": [
@@ -236,10 +247,11 @@ def check_homework():
                     ]
                 }
             ],
-            max_tokens=2048
-        )
+            "max_tokens": 2048
+        }
+        response = make_openai_request('chat/completions', payload)
         
-        feedback = response.choices[0].message.content
+        feedback = response['choices'][0]['message']['content']
         return jsonify({'feedback': feedback})
 
     except Exception as e:
@@ -264,9 +276,9 @@ def generate_homework():
         file_ext = file.filename.rsplit('.', 1)[1].lower()
         
         # Create the API request
-        response = client.chat.completions.create(
-            model="gpt-4-vision-preview",
-            messages=[
+        payload = {
+            "model": "gpt-4-vision-preview",
+            "messages": [
                 {
                     "role": "system",
                     "content": "You are a homework extractor. Extract problems exactly as they appear in the image."
@@ -287,10 +299,11 @@ def generate_homework():
                     ]
                 }
             ],
-            max_tokens=2048
-        )
+            "max_tokens": 2048
+        }
+        response = make_openai_request('chat/completions', payload)
         
-        content = response.choices[0].message.content
+        content = response['choices'][0]['message']['content']
         print("GPT Response:", content)  # Debug print
         
         # Parse the response into questions
@@ -331,9 +344,9 @@ def get_homework_help():
     question = data['question']
     question_number = data.get('questionNumber', 'unknown')
     try:
-        response = client.chat.completions.create(
-            model="gpt-4-turbo-preview",
-            messages=[
+        payload = {
+            "model": "gpt-4-turbo-preview",
+            "messages": [
                 {
                     "role": "system",
                     "content": "You are a step-by-step solution provider. Provide detailed steps to solve the given problem."
@@ -343,10 +356,11 @@ def get_homework_help():
                     "content": f"Provide a step-by-step solution for this problem: {question}"
                 }
             ],
-            max_tokens=2048
-        )
+            "max_tokens": 2048
+        }
+        response = make_openai_request('chat/completions', payload)
         
-        steps = response.choices[0].message.content
+        steps = response['choices'][0]['message']['content']
         print(f"Steps for Question {question_number}:", steps)  # Debug print
         return jsonify({'steps': steps})
 
