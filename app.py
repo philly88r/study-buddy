@@ -519,7 +519,30 @@ def check_homework():
         # Get file extension
         file_ext = file.filename.rsplit('.', 1)[1].lower()
         
-        # Create the API request
+        # Create the API request with a more structured prompt
+        prompt = """
+        Analyze this homework solution carefully. For each answer:
+        1. Determine if it's correct or incorrect
+        2. Rate your confidence in this assessment (0-100%)
+        3. If incorrect, provide the correct solution
+        4. Consider multiple valid forms of the same answer (e.g., '1/2' vs '0.5')
+        5. For math problems, check both the final answer and the work shown
+        
+        Format your response in JSON:
+        {
+            "answers": [
+                {
+                    "question_number": 1,
+                    "is_correct": true/false,
+                    "confidence": 95,
+                    "correct_answer": "only if incorrect",
+                    "explanation": "only if incorrect"
+                },
+                ...
+            ]
+        }
+        """
+        
         payload = {
             "model": "gpt-4-vision-preview",
             "messages": [
@@ -534,17 +557,28 @@ def check_homework():
                         },
                         {
                             "type": "text",
-                            "text": "Check this homework and provide feedback. Point out any errors and suggest improvements."
+                            "text": prompt
                         }
                     ]
                 }
             ],
-            "max_tokens": 2048
+            "max_tokens": 2048,
+            "response_format": { "type": "json_object" }
         }
-        response = make_openai_request('chat/completions', payload)
         
+        response = make_openai_request('chat/completions', payload)
         feedback = response['choices'][0]['message']['content']
-        return jsonify({'feedback': feedback})
+        
+        # Parse the JSON response
+        feedback_data = json.loads(feedback)
+        
+        # Filter out low-confidence assessments
+        for answer in feedback_data['answers']:
+            if answer['confidence'] < 90:
+                answer['needs_review'] = True
+                answer['is_correct'] = None  # Mark as needing human review
+        
+        return jsonify(feedback_data)
 
     except Exception as e:
         print(f"Error checking homework: {str(e)}")
