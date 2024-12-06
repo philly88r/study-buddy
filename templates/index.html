@@ -1,74 +1,43 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-12">
-    <!-- Hero Section -->
-    <div class="text-center mb-16">
-        <h1 class="text-4xl md:text-6xl font-bold text-gray-900 mb-4">
-            Your Personal 24 Hour Learning Assistant
-        </h1>
-        <p class="text-xl text-gray-600 mb-8">
-            Get instant feedback on your homework and improve your understanding with AI-powered assistance
-        </p>
-        <div class="space-x-4">
-            <a href="{{ url_for('signup') }}" class="bg-indigo-600 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-indigo-700 transition duration-300">
-                Get Started
-            </a>
-            <a href="{{ url_for('login') }}" class="bg-gray-100 text-gray-800 px-8 py-3 rounded-lg text-lg font-semibold hover:bg-gray-200 transition duration-300">
-                Login
-            </a>
-        </div>
-    </div>
-
-    <!-- Features Section -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-        <div class="bg-white p-6 rounded-lg shadow-lg">
-            <div class="text-indigo-600 mb-4">
-                <i class="fas fa-brain text-4xl"></i>
+<div class="container mt-5">
+    <div class="row align-items-center">
+        <div class="col-lg-6">
+            <h1 class="display-4 mb-4">Welcome to StudyBuddy</h1>
+            <p class="lead mb-4">Your AI-powered learning assistant that helps you study smarter, not harder.</p>
+            <div class="d-grid gap-3 d-sm-flex">
+                <a href="/flashcards" class="btn btn-primary btn-lg px-4">Try Flashcards</a>
+                <a href="/practice-by-topic" class="btn btn-outline-primary btn-lg px-4">Practice Tests</a>
             </div>
-            <h3 class="text-xl font-semibold mb-2">AI-Powered Analysis</h3>
-            <p class="text-gray-600">Get instant, intelligent feedback on your homework assignments</p>
         </div>
-        <div class="bg-white p-6 rounded-lg shadow-lg">
-            <div class="text-indigo-600 mb-4">
-                <i class="fas fa-clock text-4xl"></i>
-            </div>
-            <h3 class="text-xl font-semibold mb-2">24/7 Availability</h3>
-            <p class="text-gray-600">Access help whenever you need it, day or night</p>
-        </div>
-        <div class="bg-white p-6 rounded-lg shadow-lg">
-            <div class="text-indigo-600 mb-4">
-                <i class="fas fa-graduation-cap text-4xl"></i>
-            </div>
-            <h3 class="text-xl font-semibold mb-2">Personalized Learning</h3>
-            <p class="text-gray-600">Receive customized explanations tailored to your level</p>
-        </div>
-    </div>
-
-    <!-- How It Works Section -->
-    <div class="text-center mb-16">
-        <h2 class="text-3xl font-bold mb-8">How It Works</h2>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div>
-                <div class="bg-indigo-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                    <span class="text-2xl font-bold text-indigo-600">1</span>
+        <div class="col-lg-6">
+            <div class="card shadow-lg">
+                <div class="card-body">
+                    <h5 class="card-title mb-4">Features</h5>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">
+                            <i class="fas fa-brain me-2"></i>
+                            AI-Generated Flashcards
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-tasks me-2"></i>
+                            Practice Tests by Topic
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-upload me-2"></i>
+                            Upload & Practice
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-check-circle me-2"></i>
+                            Homework Checker
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-book me-2"></i>
+                            Homework Generator
+                        </li>
+                    </ul>
                 </div>
-                <h3 class="text-xl font-semibold mb-2">Upload Your Work</h3>
-                <p class="text-gray-600">Simply upload your homework or questions</p>
-            </div>
-            <div>
-                <div class="bg-indigo-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                    <span class="text-2xl font-bold text-indigo-600">2</span>
-                </div>
-                <h3 class="text-xl font-semibold mb-2">AI Analysis</h3>
-                <p class="text-gray-600">Our AI analyzes your work and identifies key areas</p>
-            </div>
-            <div>
-                <div class="bg-indigo-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                    <span class="text-2xl font-bold text-indigo-600">3</span>
-                </div>
-                <h3 class="text-xl font-semibold mb-2">Get Feedback</h3>
-                <p class="text-gray-600">Receive detailed feedback and explanations</p>
             </div>
         </div>
     </div>

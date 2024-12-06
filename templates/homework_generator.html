@@ -3,11 +3,12 @@
 <head>
     <title>Homework Generator</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         .math-grid {
             display: grid;
             grid-template-columns: repeat(10, 40px);
-            grid-template-rows: repeat(5, 40px);
+            grid-template-rows: repeat(9, 40px);
             gap: 2px;
         }
         .grid-cell {
@@ -86,7 +87,12 @@
 
             <!-- Homework Display -->
             <div id="homeworkContent" class="hidden mt-8">
-                <h2 class="text-2xl font-bold mb-4">Your Homework</h2>
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold">Your Homework</h2>
+                    <button id="downloadPDF" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors">
+                        Download PDF
+                    </button>
+                </div>
                 <div id="questions" class="space-y-8"></div>
                 
                 <!-- Help Section -->
@@ -230,7 +236,7 @@
                                 <!-- Grid Work Area -->
                                 <div id="gridWork_${index}" class="hidden">
                                     <div class="math-grid">
-                                        ${Array(50).fill(0).map((_, i) => `
+                                        ${Array(90).fill(0).map((_, i) => `
                                             <div class="grid-cell">
                                                 <input type="text" maxlength="1" class="math-input" data-index="${i}">
                                             </div>
@@ -391,6 +397,39 @@
             
             errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
+
+        // Add PDF generation functionality
+        document.getElementById('downloadPDF').addEventListener('click', function() {
+            const content = document.getElementById('homeworkContent');
+            const options = {
+                margin: 10,
+                filename: 'homework.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            // Temporarily show any hidden work sections for PDF
+            const workAreas = document.querySelectorAll('[id^="showWork_"]');
+            workAreas.forEach(area => {
+                const wasHidden = area.classList.contains('hidden');
+                if (wasHidden) {
+                    area.classList.remove('hidden');
+                    area.dataset.wasHidden = 'true';
+                }
+            });
+
+            // Generate PDF
+            html2pdf().set(options).from(content).save().then(() => {
+                // Restore hidden state of work areas
+                workAreas.forEach(area => {
+                    if (area.dataset.wasHidden === 'true') {
+                        area.classList.add('hidden');
+                        delete area.dataset.wasHidden;
+                    }
+                });
+            });
+        });
     </script>
 </body>
 </html>

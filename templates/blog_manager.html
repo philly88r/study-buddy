@@ -1,64 +1,73 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <div class="max-w-4xl mx-auto">
-        <h1 class="text-3xl font-bold mb-8">Blog Generator</h1>
-
-        <!-- Keywords Input -->
-        <div class="mb-8">
-            <label for="keywords" class="block text-sm font-medium text-gray-700 mb-2">
-                Enter Keywords (one per line)
-            </label>
-            <textarea
-                id="keywords"
-                rows="10"
-                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                placeholder="Enter your keywords here...&#10;Example:&#10;best study techniques&#10;how to improve memory&#10;effective note-taking methods"></textarea>
-        </div>
-
-        <!-- Generate Button -->
-        <button
-            onclick="generateBlogs()"
-            class="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition duration-300">
-            Generate Blog Posts
-        </button>
-
-        <!-- Loading State -->
-        <div id="loading" class="hidden mt-4">
-            <div class="flex items-center space-x-2">
-                <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
-                <span class="text-gray-600">Generating blog posts...</span>
+<div class="container mt-5">
+    <h2>Blog Manager</h2>
+    
+    <!-- Blog Generation Form -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Generate Blog Posts</h5>
+            <div class="form-group">
+                <label for="keywords">Keywords (one per line)</label>
+                <textarea class="form-control" id="keywords" rows="5" placeholder="Enter keywords, one per line"></textarea>
             </div>
+            <button onclick="generateBlogPosts()" class="btn btn-primary mt-3" id="generateBtn">Generate Blog Posts</button>
         </div>
+    </div>
 
-        <!-- Results -->
-        <div id="results" class="mt-8 space-y-4 hidden">
-            <h2 class="text-2xl font-semibold mb-4">Generated Blog Posts</h2>
-            <div id="blogList" class="space-y-4">
-                <!-- Blog posts will be inserted here -->
+    <!-- Status Messages -->
+    <div id="statusMessages" class="alert alert-info d-none">
+        <div class="spinner-border spinner-border-sm" role="status">
+            <span class="sr-only">Loading...</span>
+        </div>
+        <span id="statusText">Generating blog posts...</span>
+    </div>
+
+    <!-- Error Messages -->
+    <div id="errorMessages" class="alert alert-danger d-none"></div>
+
+    <!-- Generated Posts List -->
+    <div id="generatedPosts" class="d-none">
+        <h5>Generated Blog Posts:</h5>
+        <ul class="list-group" id="postsList"></ul>
+    </div>
+
+    <!-- Existing Blog Posts -->
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5 class="card-title">Existing Blog Posts</h5>
+            <div id="existingPosts">
+                <div class="spinner-border" role="status">
+                    <span class="sr-only">Loading...</span>
+                </div>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
 <script>
-async function generateBlogs() {
+async function generateBlogPosts() {
+    console.log('Generate button clicked');
     const keywordsText = document.getElementById('keywords').value;
     const keywords = keywordsText.split('\n').filter(k => k.trim());
     
+    console.log('Keywords:', keywords);
+    
     if (keywords.length === 0) {
-        alert('Please enter at least one keyword');
+        showError('Please enter at least one keyword');
         return;
     }
 
-    // Show loading state
-    document.getElementById('loading').classList.remove('hidden');
-    document.getElementById('results').classList.add('hidden');
+    // UI updates
+    const generateBtn = document.getElementById('generateBtn');
+    generateBtn.disabled = true;
+    document.getElementById('statusMessages').classList.remove('d-none');
+    document.getElementById('errorMessages').classList.add('d-none');
+    document.getElementById('generatedPosts').classList.add('d-none');
 
     try {
+        console.log('Sending request to generate blogs...');
         const response = await fetch('/blog/generate', {
             method: 'POST',
             headers: {
@@ -67,38 +76,92 @@ async function generateBlogs() {
             body: JSON.stringify({ keywords })
         });
 
+        console.log('Response received:', response.status);
         const data = await response.json();
+        console.log('Response data:', data);
 
-        if (response.ok) {
-            displayResults(data.blog_posts);
-        } else {
+        if (!response.ok) {
             throw new Error(data.error || 'Failed to generate blog posts');
         }
+
+        // Show generated posts
+        const postsList = document.getElementById('postsList');
+        postsList.innerHTML = '';
+        
+        data.blog_posts.forEach(post => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item';
+            li.innerHTML = `
+                <h6>${post.title}</h6>
+                <a href="/blog/${post.slug}" class="btn btn-sm btn-primary" target="_blank">View Post</a>
+            `;
+            postsList.appendChild(li);
+        });
+
+        document.getElementById('generatedPosts').classList.remove('d-none');
+        document.getElementById('statusMessages').classList.add('d-none');
+        
+        // Refresh existing posts list
+        loadExistingPosts();
+        
     } catch (error) {
-        alert('Error: ' + error.message);
+        console.error('Error generating blogs:', error);
+        showError(error.message);
     } finally {
-        document.getElementById('loading').classList.add('hidden');
+        generateBtn.disabled = false;
+        document.getElementById('statusMessages').classList.add('d-none');
     }
 }
 
-function displayResults(blogPosts) {
-    const blogList = document.getElementById('blogList');
-    blogList.innerHTML = '';
-
-    blogPosts.forEach(post => {
-        const blogCard = document.createElement('div');
-        blogCard.className = 'bg-white p-6 rounded-lg shadow-lg';
-        blogCard.innerHTML = `
-            <h3 class="text-xl font-semibold mb-2">${post.title}</h3>
-            <a href="/blog/${post.slug}" 
-               class="text-indigo-600 hover:text-indigo-800 hover:underline">
-                View Blog Post
-            </a>
-        `;
-        blogList.appendChild(blogCard);
-    });
-
-    document.getElementById('results').classList.remove('hidden');
+function showError(message) {
+    console.log('Showing error:', message);
+    const errorDiv = document.getElementById('errorMessages');
+    errorDiv.textContent = message;
+    errorDiv.classList.remove('d-none');
 }
+
+async function loadExistingPosts() {
+    console.log('Loading existing posts...');
+    const existingPostsDiv = document.getElementById('existingPosts');
+    
+    try {
+        const response = await fetch('/blog/list');
+        const data = await response.json();
+        console.log('Existing posts data:', data);
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to load existing posts');
+        }
+
+        if (data.blog_posts.length === 0) {
+            existingPostsDiv.innerHTML = '<p>No blog posts found</p>';
+            return;
+        }
+
+        const postsList = document.createElement('div');
+        postsList.className = 'list-group';
+        
+        data.blog_posts.forEach(post => {
+            const item = document.createElement('div');
+            item.className = 'list-group-item';
+            item.innerHTML = `
+                <h6>${post.title}</h6>
+                <p class="mb-1">${post.introduction}</p>
+                <a href="/blog/${post.slug}" class="btn btn-sm btn-primary" target="_blank">View Post</a>
+            `;
+            postsList.appendChild(item);
+        });
+
+        existingPostsDiv.innerHTML = '';
+        existingPostsDiv.appendChild(postsList);
+
+    } catch (error) {
+        console.error('Error loading existing posts:', error);
+        existingPostsDiv.innerHTML = `<div class="alert alert-danger">Error loading posts: ${error.message}</div>`;
+    }
+}
+
+// Load existing posts when page loads
+document.addEventListener('DOMContentLoaded', loadExistingPosts);
 </script>
 {% endblock %}

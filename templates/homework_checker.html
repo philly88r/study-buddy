@@ -41,7 +41,7 @@
         
         <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-6">
             <!-- Upload Form -->
-            <form id="uploadForm" action="/analyze_homework" method="post" enctype="multipart/form-data" class="space-y-6">
+            <form id="uploadForm" action="/check_homework" method="post" enctype="multipart/form-data" class="space-y-6">
                 <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                     <input type="file" 
                            id="file" 
@@ -117,7 +117,7 @@
             errorDiv.style.display = 'none';
             resultsDiv.innerHTML = '';
 
-            fetch('/analyze_homework', {
+            fetch('/check_homework', {
                 method: 'POST',
                 body: formData,
                 credentials: 'same-origin'  // Add this line to include authentication cookies
@@ -137,10 +137,10 @@
                 if (data.error) {
                     throw new Error(data.error);
                 }
-                if (!data.results || !Array.isArray(data.results)) {
+                if (!data.feedback) {
                     throw new Error('Invalid response format');
                 }
-                displayResults(data.results);
+                displayResults(data.feedback);
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -152,31 +152,24 @@
             });
         }
 
-        function displayResults(data) {
+        function displayResults(feedback) {
             resultsDiv.innerHTML = '';
             resultsDiv.classList.remove('hidden');
             
-            if (!data || !Array.isArray(data)) {
-                errorDiv.textContent = 'Invalid response format';
+            if (!feedback) {
+                errorDiv.textContent = 'No feedback received';
                 errorDiv.style.display = 'block';
                 return;
             }
 
-            let resultsHTML = '<h3>Analysis Results:</h3>';
-            data.forEach((result, index) => {
-                resultsHTML += `
-                    <div class="result-item ${result.is_correct ? 'correct' : 'incorrect'}">
-                        <h4>Problem ${index + 1}</h4>
-                        <p><strong>Question:</strong> ${result.question}</p>
-                        <p><strong>Your Answer:</strong> ${result.student_answer}</p>
-                        <p><strong>Status:</strong> ${result.is_correct ? '✓ Correct' : '✗ Incorrect'}</p>
-                        ${!result.is_correct ? `
-                            <p><strong>Correct Answer:</strong> ${result.correct_answer}</p>
-                            <p><strong>Explanation:</strong> ${result.explanation}</p>
-                        ` : ''}
+            let resultsHTML = `
+                <div class="bg-white shadow-lg rounded-lg p-6">
+                    <h3 class="text-xl font-bold mb-4">Homework Analysis:</h3>
+                    <div class="prose max-w-none">
+                        ${feedback.split('\n').map(line => `<p>${line}</p>`).join('')}
                     </div>
-                `;
-            });
+                </div>
+            `;
             
             resultsDiv.innerHTML = resultsHTML;
         }

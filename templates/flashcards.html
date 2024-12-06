@@ -278,7 +278,7 @@
             const cardType = document.querySelector('input[name="cardType"]:checked').value;
             
             if (!fileInput.files[0]) {
-                alert('Please select a file first');
+                showError('Please select a file first');
                 return;
             }
 
@@ -298,31 +298,35 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to generate flashcards');
+                    const data = await response.json();
+                    throw new Error(data.error || 'Failed to generate flashcards');
                 }
 
                 const data = await response.json();
-                if (data.error) {
-                    throw new Error(data.error);
+                
+                if (!data.flashcards || !Array.isArray(data.flashcards) || data.flashcards.length === 0) {
+                    throw new Error('No flashcards were generated');
                 }
 
-                // Reset state
+                // Reset stats
+                cardStats = {};
+                
+                // Store flashcards
                 flashcards = data.flashcards;
                 currentCardIndex = 0;
-                cardStats = {};
 
-                // Show study section
+                // Hide upload section
                 uploadSection.classList.add('hidden');
+
+                // Show study section and update display
                 loading.classList.add('hidden');
                 studySection.classList.remove('hidden');
-
-                // Initialize cards
                 updateCard();
                 updateStats();
 
             } catch (error) {
                 console.error('Error:', error);
-                showError('Error generating flashcards: ' + error.message);
+                showError(error.message);
                 loading.classList.add('hidden');
             }
         });

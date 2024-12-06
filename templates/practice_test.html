@@ -138,7 +138,7 @@
                         grade,
                         subject,
                         topic,
-                        questionCount
+                        questionCount: parseInt(questionCount)
                     })
                 });
 
@@ -147,9 +147,14 @@
                 }
 
                 const data = await response.json();
+                if (!data.questions || !Array.isArray(data.questions)) {
+                    throw new Error('Invalid response format from server');
+                }
+                
                 currentQuestions = data.questions;
-                displayTest(data.questions);
+                displayTest(currentQuestions);
             } catch (error) {
+                console.error('Error:', error);
                 showError(error.message);
             } finally {
                 document.getElementById('loading').classList.add('hidden');
@@ -182,6 +187,10 @@
                     <div class="correct-answer hidden mt-4 p-4 bg-green-50 rounded">
                         <p class="font-semibold text-green-800">Correct Answer:</p>
                         <p class="mt-1">${question.answer}</p>
+                        ${question.explanation ? `
+                            <p class="font-semibold text-green-800 mt-3">Explanation:</p>
+                            <p class="mt-1">${question.explanation}</p>
+                        ` : ''}
                     </div>
 
                     <div class="feedback hidden mt-4 p-4 rounded"></div>
@@ -191,57 +200,52 @@
 
             document.getElementById('testContent').classList.remove('hidden');
             document.getElementById('results').classList.add('hidden');
+            
+            // Add event listener for "Show Answers" button
+            document.getElementById('showAnswers').onclick = function() {
+                document.querySelectorAll('.correct-answer').forEach(el => {
+                    el.classList.remove('hidden');
+                });
+            };
         }
 
-        document.getElementById('answerForm').addEventListener('submit', async function(e) {
+        document.getElementById('answerForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
-            const answers = [];
-            currentQuestions.forEach((_, index) => {
-                const answerElement = document.querySelector(`[name="answer_${index}"]`);
-                answers.push({
-                    question: currentQuestions[index].question,
-                    userAnswer: answerElement.value,
-                    correctAnswer: currentQuestions[index].answer
-                });
-            });
-
-            // Calculate score
-            let correct = 0;
-            answers.forEach((answer, index) => {
+            let correctCount = 0;
+            const totalQuestions = currentQuestions.length;
+            
+            currentQuestions.forEach((question, index) => {
+                const userAnswer = document.querySelector(`[name="answer_${index}"]`).value.trim().toLowerCase();
+                const correctAnswer = question.answer.toLowerCase();
                 const feedbackDiv = document.querySelectorAll('.feedback')[index];
-                const isCorrect = checkAnswer(answer.userAnswer, answer.correctAnswer);
                 
-                feedbackDiv.classList.remove('hidden', 'bg-green-100', 'bg-red-100');
-                feedbackDiv.classList.add(isCorrect ? 'bg-green-100' : 'bg-red-100');
-                feedbackDiv.innerHTML = `
-                    <p class="font-semibold ${isCorrect ? 'text-green-800' : 'text-red-800'}">
-                        ${isCorrect ? 'Correct!' : 'Incorrect'}
-                    </p>
-                `;
-                
-                if (isCorrect) correct++;
+                if (userAnswer === correctAnswer) {
+                    correctCount++;
+                    feedbackDiv.classList.remove('hidden');
+                    feedbackDiv.classList.add('bg-green-50');
+                    feedbackDiv.innerHTML = '<p class="text-green-800">✓ Correct!</p>';
+                } else {
+                    feedbackDiv.classList.remove('hidden');
+                    feedbackDiv.classList.add('bg-red-50');
+                    feedbackDiv.innerHTML = `
+                        <p class="text-red-800">✗ Incorrect</p>
+                        <p class="mt-2"><strong>Correct Answer:</strong> ${question.answer}</p>
+                        ${question.explanation ? `<p class="mt-2"><strong>Explanation:</strong> ${question.explanation}</p>` : ''}
+                    `;
+                }
             });
-
-            // Display results
-            const resultsDiv = document.getElementById('results');
-            document.getElementById('score').textContent = `${Math.round((correct / answers.length) * 100)}%`;
-            document.getElementById('correctCount').textContent = correct;
-            document.getElementById('totalQuestions').textContent = answers.length;
-            resultsDiv.classList.remove('hidden');
-        });
-
-        document.getElementById('showAnswers').addEventListener('click', function() {
-            document.querySelectorAll('.correct-answer').forEach(answer => {
-                answer.classList.toggle('hidden');
+            
+            // Show results
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('correctCount').textContent = correctCount;
+            document.getElementById('totalQuestions').textContent = totalQuestions;
+            
+            // Show all correct answers
+            document.querySelectorAll('.correct-answer').forEach(el => {
+                el.classList.remove('hidden');
             });
-            this.textContent = this.textContent === 'Show Correct Answers' ? 'Hide Correct Answers' : 'Show Correct Answers';
         });
-
-        function checkAnswer(userAnswer, correctAnswer) {
-            // Basic answer checking - you might want to make this more sophisticated
-            return userAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
-        }
 
         function showError(message) {
             const errorDiv = document.getElementById('error');
