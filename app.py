@@ -33,13 +33,11 @@ CORS(app)
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-here')
 
 # Database configuration
-database_url = os.getenv('DATABASE_URL', 'sqlite:///studybuddy.db')
+database_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'studybuddy.db')
+database_url = f'sqlite:///{database_path}'
 print(f"Using database: {database_url}")
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-if database_url.startswith('postgres://'):
-    app.config['SQLALCHEMY_DATABASE_URI'] = database_url.replace('postgres://', 'postgresql://', 1)
-
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize database
@@ -110,39 +108,50 @@ def signup():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    print("\n=== Login Route ===")
+    print(f"Method: {request.method}")
+    
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
         
         print(f"Login attempt - Username: {username}")
+        print(f"Form data: {request.form}")
         
         user = User.query.filter_by(username=username).first()
         print(f"User found: {user is not None}")
         
-        if user and user.check_password(password):
-            session['user_id'] = user.id
-            session['username'] = user.username
-            print(f"Login successful for user {username}")
-            flash('Logged in successfully!')
-            return redirect(url_for('index'))
-        else:
-            print(f"Login failed for user {username}")
-            flash('Invalid username or password')
-            return redirect(url_for('login'))
+        if user:
+            password_check = user.check_password(password)
+            print(f"Password check result: {password_check}")
+            
+            if password_check:
+                session['user_id'] = user.id
+                session['username'] = user.username
+                print(f"Login successful for user {username}")
+                print(f"Session data: {session}")
+                flash('Logged in successfully!')
+                return redirect(url_for('index'))
+            else:
+                print(f"Password check failed for user {username}")
+        
+        print(f"Login failed for user {username}")
+        flash('Invalid username or password')
+        return redirect(url_for('login'))
     
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
-    session.pop('user_id', None)
-    session.pop('username', None)
+    session.clear()
     flash('You have been logged out.')
     return redirect(url_for('login'))
 
 # Protected routes
 @app.route('/')
-@login_required
 def index():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
     return render_template('index.html')
 
 @app.route('/flashcards')
@@ -150,22 +159,22 @@ def index():
 def flashcards():
     return render_template('flashcards.html')
 
-@app.route('/practice-by-topic')
+@app.route('/practice_by_topic')
 @login_required
 def practice_by_topic():
-    return render_template('practice_test.html')
+    return render_template('practice_by_topic.html')
 
-@app.route('/practice-by-upload')
+@app.route('/practice_by_upload')
 @login_required
 def practice_by_upload():
     return render_template('upload_practice_test.html')
 
-@app.route('/homework-checker')
+@app.route('/homework_checker')
 @login_required
 def homework_checker():
     return render_template('homework_checker.html')
 
-@app.route('/homework-generator')
+@app.route('/homework_generator')
 @login_required
 def homework_generator():
     return render_template('homework_generator.html')
