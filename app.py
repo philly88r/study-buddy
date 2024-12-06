@@ -503,6 +503,7 @@ def generate_upload_test():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/check_homework', methods=['POST'])
+@login_required
 def check_homework():
     if 'file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400

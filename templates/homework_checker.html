@@ -142,10 +142,10 @@
                 if (data.error) {
                     throw new Error(data.error);
                 }
-                if (!data.feedback) {
+                if (!data.answers) {
                     throw new Error('Invalid response format');
                 }
-                displayResults(data.feedback);
+                displayResults(data);
             })
             .catch(error => {
                 console.error('Error:', error);
