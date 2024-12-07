@@ -120,20 +120,26 @@
             // Show loading state
             loadingSpinner.style.display = 'block';
             errorDiv.style.display = 'none';
-            resultsDiv.innerHTML = '';
+            resultsDiv.classList.add('hidden');
 
             fetch('/check_homework', {
                 method: 'POST',
                 body: formData,
-                credentials: 'same-origin'  // Add this line to include authentication cookies
+                credentials: 'same-origin'
             })
-            .then(response => {
+            .then(async response => {
+                const contentType = response.headers.get('content-type');
                 if (response.status === 401) {
-                    window.location.href = '/login';  // Redirect to login if unauthorized
+                    window.location.href = '/login';
                     throw new Error('Please log in to use this feature');
                 }
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    const errorText = await response.text();
+                    console.error('Server response:', errorText);
+                    throw new Error(`Server error (${response.status}): ${errorText}`);
+                }
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error(`Invalid content type: ${contentType}`);
                 }
                 return response.json();
             })
@@ -143,14 +149,16 @@
                     throw new Error(data.error);
                 }
                 if (!data.answers) {
-                    throw new Error('Invalid response format');
+                    console.error('Invalid response format:', data);
+                    throw new Error('Invalid response format from server');
                 }
                 displayResults(data);
             })
             .catch(error => {
                 console.error('Error:', error);
-                errorDiv.textContent = error.message;
+                errorDiv.textContent = error.message || 'An error occurred while checking homework';
                 errorDiv.style.display = 'block';
+                resultsDiv.classList.add('hidden');
             })
             .finally(() => {
                 loadingSpinner.style.display = 'none';

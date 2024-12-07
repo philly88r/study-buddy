@@ -505,85 +505,116 @@ def generate_upload_test():
 @app.route('/check_homework', methods=['POST'])
 @login_required
 def check_homework():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-
     try:
-        # Read and encode the file
-        file_content = file.read()
-        base64_image = base64.b64encode(file_content).decode('utf-8')
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
         
-        # Get file extension
-        file_ext = file.filename.rsplit('.', 1)[1].lower()
-        
-        # Create the API request with a more structured prompt
-        prompt = """
-        Analyze this homework solution carefully. For each answer:
-        1. Determine if it's correct or incorrect
-        2. Rate your confidence in this assessment (0-100%)
-        3. If incorrect, provide the correct solution
-        4. Consider multiple valid forms of the same answer (e.g., '1/2' vs '0.5')
-        5. For math problems, check both the final answer and the work shown
-        
-        Format your response in JSON:
-        {
-            "answers": [
-                {
-                    "question_number": 1,
-                    "is_correct": true/false,
-                    "confidence": 95,
-                    "correct_answer": "only if incorrect",
-                    "explanation": "only if incorrect"
-                },
-                ...
-            ]
-        }
-        """
-        
-        payload = {
-            "model": "gpt-4-vision-preview",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/{file_ext};base64,{base64_image}"
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+
+        try:
+            # Read and encode the file
+            file_content = file.read()
+            if not file_content:
+                return jsonify({'error': 'Empty file uploaded'}), 400
+                
+            base64_image = base64.b64encode(file_content).decode('utf-8')
+            
+            # Get file extension
+            if '.' not in file.filename:
+                return jsonify({'error': 'File has no extension'}), 400
+                
+            file_ext = file.filename.rsplit('.', 1)[1].lower()
+            if file_ext not in ['jpg', 'jpeg', 'png', 'gif']:
+                return jsonify({'error': f'Unsupported file type: {file_ext}'}), 400
+
+            # Create the API request with a more structured prompt
+            prompt = """
+            Analyze this homework solution carefully. For each answer:
+            1. Determine if it's correct or incorrect
+            2. Rate your confidence in this assessment (0-100%)
+            3. If incorrect, provide the correct solution
+            4. Consider multiple valid forms of the same answer (e.g., '1/2' vs '0.5')
+            5. For math problems, check both the final answer and the work shown
+            
+            Format your response in JSON:
+            {
+                "answers": [
+                    {
+                        "question_number": 1,
+                        "is_correct": true/false,
+                        "confidence": 95,
+                        "correct_answer": "only if incorrect",
+                        "explanation": "only if incorrect"
+                    }
+                ]
+            }
+            """
+            
+            payload = {
+                "model": "gpt-4-vision-preview",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/{file_ext};base64,{base64_image}"
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": prompt
                             }
-                        },
-                        {
-                            "type": "text",
-                            "text": prompt
-                        }
-                    ]
-                }
-            ],
-            "max_tokens": 2048,
-            "response_format": { "type": "json_object" }
-        }
-        
-        response = make_openai_request('chat/completions', payload)
-        feedback = response['choices'][0]['message']['content']
-        
-        # Parse the JSON response
-        feedback_data = json.loads(feedback)
-        
-        # Filter out low-confidence assessments
-        for answer in feedback_data['answers']:
-            if answer['confidence'] < 90:
-                answer['needs_review'] = True
-                answer['is_correct'] = None  # Mark as needing human review
-        
-        return jsonify(feedback_data)
+                        ]
+                    }
+                ],
+                "max_tokens": 2048,
+                "response_format": { "type": "json_object" }
+            }
+            
+            print("Making OpenAI API request...")
+            response = make_openai_request('chat/completions', payload)
+            print("OpenAI API response received")
+            
+            if not response:
+                return jsonify({'error': 'No response from OpenAI API'}), 500
+                
+            content = response.get('choices', [{}])[0].get('message', {}).get('content')
+            if not content:
+                return jsonify({'error': 'Empty response from OpenAI API'}), 500
+            
+            print("Parsing JSON response...")
+            feedback_data = json.loads(content)
+            if 'answers' not in feedback_data:
+                return jsonify({'error': 'Invalid response format from OpenAI API'}), 500
+            
+            # Filter out low-confidence assessments
+            for answer in feedback_data['answers']:
+                if answer.get('confidence', 0) < 90:
+                    answer['needs_review'] = True
+                    answer['is_correct'] = None
+            
+            return jsonify(feedback_data)
+
+        except json.JSONDecodeError as e:
+            print(f"JSON Decode Error: {str(e)}")
+            print(f"Response content: {content}")
+            return jsonify({'error': 'Failed to parse OpenAI response'}), 500
+            
+        except Exception as e:
+            print(f"Error processing file: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': f'Error processing file: {str(e)}'}), 500
 
     except Exception as e:
-        print(f"Error checking homework: {str(e)}")
-        return jsonify({'error': 'Error checking homework'}), 500
+        print(f"Outer error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 @app.route('/generate_homework', methods=['POST'])
 def generate_homework():
