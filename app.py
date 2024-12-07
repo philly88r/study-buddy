@@ -529,24 +529,23 @@ def check_homework():
             if file_ext not in ['jpg', 'jpeg', 'png', 'gif']:
                 return jsonify({'error': f'Unsupported file type: {file_ext}'}), 400
 
-            # Create the API request with a more structured prompt
             prompt = """
-            Analyze this homework solution carefully. For each answer:
+            Analyze this homework solution and respond with a JSON object containing an array of answers.
+            For each answer found in the image:
             1. Determine if it's correct or incorrect
-            2. Rate your confidence in this assessment (0-100%)
+            2. Rate your confidence (0-100%)
             3. If incorrect, provide the correct solution
-            4. Consider multiple valid forms of the same answer (e.g., '1/2' vs '0.5')
-            5. For math problems, check both the final answer and the work shown
-            
-            Format your response in JSON:
+            4. Consider equivalent answers (e.g., '1/2' vs '0.5')
+
+            Return ONLY a JSON object like this (no other text):
             {
                 "answers": [
                     {
                         "question_number": 1,
-                        "is_correct": true/false,
+                        "is_correct": true,
                         "confidence": 95,
-                        "correct_answer": "only if incorrect",
-                        "explanation": "only if incorrect"
+                        "correct_answer": null,
+                        "explanation": null
                     }
                 ]
             }
@@ -572,32 +571,61 @@ def check_homework():
                     }
                 ],
                 "max_tokens": 2048,
-                "response_format": { "type": "json_object" }
+                "temperature": 0.2  # Add lower temperature for more consistent output
             }
             
             print("Making OpenAI API request...")
             response = make_openai_request('chat/completions', payload)
             print("OpenAI API response received")
             
-            if not response:
-                return jsonify({'error': 'No response from OpenAI API'}), 500
+            if not response or 'choices' not in response:
+                print("Invalid response structure:", response)
+                return jsonify({'error': 'Invalid response from OpenAI API'}), 500
                 
-            content = response.get('choices', [{}])[0].get('message', {}).get('content')
-            if not content:
-                return jsonify({'error': 'Empty response from OpenAI API'}), 500
+            content = response['choices'][0]['message']['content'].strip()
+            print("Raw response content:", content)
             
-            print("Parsing JSON response...")
-            feedback_data = json.loads(content)
-            if 'answers' not in feedback_data:
-                return jsonify({'error': 'Invalid response format from OpenAI API'}), 500
-            
-            # Filter out low-confidence assessments
-            for answer in feedback_data['answers']:
-                if answer.get('confidence', 0) < 90:
-                    answer['needs_review'] = True
-                    answer['is_correct'] = None
-            
-            return jsonify(feedback_data)
+            try:
+                # Try to find JSON in the response if there's any extra text
+                import re
+                json_match = re.search(r'\{[\s\S]*\}', content)
+                if json_match:
+                    content = json_match.group(0)
+                
+                feedback_data = json.loads(content)
+                
+                if 'answers' not in feedback_data:
+                    print("Missing 'answers' key in parsed data:", feedback_data)
+                    return jsonify({'error': 'Invalid response format from OpenAI API'}), 500
+                
+                # Ensure each answer has all required fields
+                for answer in feedback_data['answers']:
+                    answer['question_number'] = answer.get('question_number', 0)
+                    answer['is_correct'] = answer.get('is_correct', False)
+                    answer['confidence'] = answer.get('confidence', 0)
+                    answer['correct_answer'] = answer.get('correct_answer', '')
+                    answer['explanation'] = answer.get('explanation', '')
+                    
+                    # Convert confidence to number if it's a string
+                    if isinstance(answer['confidence'], str):
+                        answer['confidence'] = int(answer['confidence'].rstrip('%'))
+                    
+                    if answer['confidence'] < 90:
+                        answer['needs_review'] = True
+                        answer['is_correct'] = None
+                
+                return jsonify(feedback_data)
+
+            except json.JSONDecodeError as e:
+                print(f"JSON Decode Error: {str(e)}")
+                print(f"Failed content: {content}")
+                return jsonify({'error': 'Failed to parse OpenAI response'}), 500
+                
+            except Exception as e:
+                print(f"Error processing response: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                return jsonify({'error': f'Error processing response: {str(e)}'}), 500
 
         except json.JSONDecodeError as e:
             print(f"JSON Decode Error: {str(e)}")
