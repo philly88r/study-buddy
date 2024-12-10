@@ -31,6 +31,26 @@
         .grid-cell input:focus {
             background-color: #e8f0fe;
         }
+        .work-textarea {
+            max-height: 300px;
+            overflow-y: auto;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+        .question-controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .question-text {
+            width: 100%;
+            min-height: 60px;
+            padding: 8px;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            resize: vertical;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -89,9 +109,14 @@
             <div id="homeworkContent" class="hidden mt-8">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-bold">Your Homework</h2>
-                    <button id="downloadPDF" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors">
-                        Download PDF
-                    </button>
+                    <div class="flex gap-4">
+                        <button id="addQuestion" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition-colors">
+                            Add Question
+                        </button>
+                        <button id="downloadPDF" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors">
+                            Download PDF
+                        </button>
+                    </div>
                 </div>
                 <div id="questions" class="space-y-8"></div>
                 
@@ -187,14 +212,20 @@
 
             questions.forEach((question, index) => {
                 const questionElement = document.createElement('div');
-                questionElement.className = 'p-6 bg-gray-50 rounded-lg';
+                questionElement.className = 'p-6 bg-gray-50 rounded-lg mb-4';
+                questionElement.dataset.index = index;
                 
                 const questionText = question.question ? question.question.trim() : 'Error: Question not available';
                 
                 questionElement.innerHTML = `
                     <div class="mb-4">
-                        <p class="font-bold text-lg mb-2">Question ${index + 1}:</p>
-                        <p class="mb-4">${questionText}</p>
+                        <div class="question-controls">
+                            <p class="font-bold text-lg">Question ${index + 1}:</p>
+                            <button class="text-red-600 hover:text-red-800" onclick="deleteQuestion(${index})">
+                                Delete
+                            </button>
+                        </div>
+                        <textarea class="question-text" onchange="updateQuestion(${index}, this.value)">${questionText}</textarea>
                     </div>
                     <div class="space-y-4">
                         <!-- Simple Answer Box -->
@@ -229,8 +260,14 @@
                                 
                                 <!-- Text Work Area -->
                                 <div id="textWork_${index}">
-                                    <textarea class="w-full p-2 border rounded resize-y" rows="4" 
-                                              placeholder="Show your work here..."></textarea>
+                                    <textarea class="w-full p-2 border rounded resize-y work-textarea" 
+                                              rows="4" 
+                                              maxlength="1000"
+                                              placeholder="Show your work here..."
+                                              oninput="checkTextLimit(this, 1000)"></textarea>
+                                    <div class="text-sm text-gray-500 mt-1">
+                                        <span class="char-count">0</span>/1000 characters
+                                    </div>
                                 </div>
                                 
                                 <!-- Grid Work Area -->
@@ -430,6 +467,41 @@
                 });
             });
         });
+
+        // Add new functions for question management
+        function addQuestion() {
+            currentQuestions.push({
+                question: 'New Question'
+            });
+            displayHomework(currentQuestions);
+            updateQuestionSelector(currentQuestions);
+        }
+
+        function deleteQuestion(index) {
+            if (confirm('Are you sure you want to delete this question?')) {
+                currentQuestions.splice(index, 1);
+                displayHomework(currentQuestions);
+                updateQuestionSelector(currentQuestions);
+            }
+        }
+
+        function updateQuestion(index, newText) {
+            currentQuestions[index].question = newText;
+            updateQuestionSelector(currentQuestions);
+        }
+
+        function checkTextLimit(textarea, maxLength) {
+            const charCount = textarea.parentElement.querySelector('.char-count');
+            charCount.textContent = textarea.value.length;
+            
+            if (textarea.value.length >= maxLength) {
+                textarea.value = textarea.value.slice(0, maxLength);
+                charCount.textContent = maxLength;
+            }
+        }
+
+        // Add event listener for Add Question button
+        document.getElementById('addQuestion').addEventListener('click', addQuestion);
     </script>
 </body>
 </html>

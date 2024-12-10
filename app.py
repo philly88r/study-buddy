@@ -14,6 +14,9 @@ import threading
 import hashlib
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from slugify import slugify
+from datetime import timedelta
+from flask_session import Session
 
 # Set console encoding to UTF-8
 if sys.stdout.encoding != 'utf-8':
@@ -30,7 +33,17 @@ app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
 CORS(app)
 
 # Configure secret key for session
-app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-here')
+app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-here')  # Make sure to set a strong secret key in production
+
+# Session configuration
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Sessions last for 7 days
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+# Initialize Flask-Session
+Session(app)
 
 # Database configuration
 database_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'studybuddy.db')
@@ -56,6 +69,17 @@ class User(db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+# BlogPost model
+class BlogPost(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(120), nullable=False)
+    slug = db.Column(db.String(120), unique=True, nullable=False)
+    introduction = db.Column(db.Text, nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    toc = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())
+    updated_at = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+
 # Create database tables
 with app.app_context():
     db.create_all()
@@ -64,7 +88,7 @@ with app.app_context():
 # Login required decorator
 def login_required(f):
     def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
+        if not session.get('logged_in'):
             flash('Please log in to access this page.')
             return redirect(url_for('login'))
         return f(*args, **kwargs)
@@ -126,8 +150,14 @@ def login():
             print(f"Password check result: {password_check}")
             
             if password_check:
+                # Make the session permanent
+                session.permanent = True
+                
+                # Store user info in session
                 session['user_id'] = user.id
                 session['username'] = user.username
+                session['logged_in'] = True
+                
                 print(f"Login successful for user {username}")
                 print(f"Session data: {session}")
                 flash('Logged in successfully!')
@@ -143,14 +173,21 @@ def login():
 
 @app.route('/logout')
 def logout():
+    # Remove specific session keys
+    session.pop('user_id', None)
+    session.pop('username', None)
+    session.pop('logged_in', None)
+    
+    # Clear the entire session
     session.clear()
+    
     flash('You have been logged out.')
     return redirect(url_for('login'))
 
 # Protected routes
 @app.route('/')
 def index():
-    if 'user_id' not in session:
+    if not session.get('logged_in'):
         return redirect(url_for('login'))
     return render_template('index.html')
 
@@ -754,6 +791,166 @@ def get_homework_help():
         print(f"Error generating help for question {question_number}: {str(e)}")
         traceback.print_exc()  # Print full traceback
         return jsonify({'error': str(e)}), 500
+
+# Blog API endpoints
+@app.route('/api/blogs', methods=['GET'])
+def get_blogs():
+    try:
+        blogs = BlogPost.query.order_by(BlogPost.created_at.desc()).all()
+        return jsonify({
+            'success': True,
+            'blogs': [{
+                'id': blog.id,
+                'title': blog.title,
+                'slug': blog.slug,
+                'introduction': blog.introduction,
+                'content': blog.content,
+                'toc': blog.toc,
+                'created_at': blog.created_at.isoformat(),
+                'updated_at': blog.updated_at.isoformat()
+            } for blog in blogs]
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/blogs/<int:blog_id>', methods=['GET'])
+def get_blog(blog_id):
+    try:
+        blog = BlogPost.query.get_or_404(blog_id)
+        return jsonify({
+            'success': True,
+            'blog': {
+                'id': blog.id,
+                'title': blog.title,
+                'slug': blog.slug,
+                'introduction': blog.introduction,
+                'content': blog.content,
+                'toc': blog.toc,
+                'created_at': blog.created_at.isoformat(),
+                'updated_at': blog.updated_at.isoformat()
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/blogs', methods=['POST'])
+@login_required
+def create_blog():
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['title', 'introduction', 'content', 'toc']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+        
+        # Generate slug from title
+        slug = slugify(data['title'])
+        
+        # Check if slug already exists
+        if BlogPost.query.filter_by(slug=slug).first():
+            # Append a number to make it unique
+            base_slug = slug
+            counter = 1
+            while BlogPost.query.filter_by(slug=slug).first():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+        
+        blog = BlogPost(
+            title=data['title'],
+            slug=slug,
+            introduction=data['introduction'],
+            content=data['content'],
+            toc=data['toc']
+        )
+        
+        db.session.add(blog)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'blog': {
+                'id': blog.id,
+                'title': blog.title,
+                'slug': blog.slug,
+                'introduction': blog.introduction,
+                'content': blog.content,
+                'toc': blog.toc,
+                'created_at': blog.created_at.isoformat(),
+                'updated_at': blog.updated_at.isoformat()
+            }
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/blogs/<int:blog_id>', methods=['PUT'])
+@login_required
+def update_blog(blog_id):
+    try:
+        blog = BlogPost.query.get_or_404(blog_id)
+        data = request.get_json()
+        
+        # Update fields if provided
+        if 'title' in data:
+            blog.title = data['title']
+            # Update slug if title changes
+            new_slug = slugify(data['title'])
+            if new_slug != blog.slug:
+                # Check if new slug exists
+                if BlogPost.query.filter_by(slug=new_slug).first():
+                    base_slug = new_slug
+                    counter = 1
+                    while BlogPost.query.filter_by(slug=new_slug).first():
+                        new_slug = f"{base_slug}-{counter}"
+                        counter += 1
+                blog.slug = new_slug
+                
+        if 'introduction' in data:
+            blog.introduction = data['introduction']
+        if 'content' in data:
+            blog.content = data['content']
+        if 'toc' in data:
+            blog.toc = data['toc']
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'blog': {
+                'id': blog.id,
+                'title': blog.title,
+                'slug': blog.slug,
+                'introduction': blog.introduction,
+                'content': blog.content,
+                'toc': blog.toc,
+                'created_at': blog.created_at.isoformat(),
+                'updated_at': blog.updated_at.isoformat()
+            }
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/blogs/<int:blog_id>', methods=['DELETE'])
+@login_required
+def delete_blog(blog_id):
+    try:
+        blog = BlogPost.query.get_or_404(blog_id)
+        db.session.delete(blog)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Blog post deleted successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
