@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Educational News & Resources</h1>
+    
+    <!-- Category Navigation -->
+    <div class="mb-4">
+        <div class="category-grid">
+            {% for category in categories %}
+            <button type="button" class="btn btn-outline-primary category-btn {% if loop.first %}active{% endif %}" 
+                    data-category="{{ category }}">
+                {{ category | replace('-', ' ') | title }}
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- News Articles Container -->
+    <div id="news-container" class="row">
+        <!-- Articles will be loaded here -->
+        <div class="col-12 text-center" id="loading">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Article Template -->
+<template id="article-template">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <img src="" class="card-img-top article-image" alt="News Image">
+            <div class="card-body">
+                <h5 class="card-title article-title"></h5>
+                <p class="card-text article-description"></p>
+                <p class="card-text"><small class="text-muted article-source"></small></p>
+                <a href="" class="btn btn-primary article-link" target="_blank">Read More</a>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Custom CSS -->
+<style>
+.card-img-top {
+    height: 200px;
+    object-fit: cover;
+}
+
+.category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.category-btn {
+    width: 100%;
+    text-align: center;
+    padding: 10px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.category-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.category-btn.active {
+    background-color: #0d6efd;
+    color: white;
+    border-color: #0d6efd;
+}
+</style>
+
+<!-- JavaScript for loading news -->
+<script>
+function loadNews(category) {
+    const container = document.getElementById('news-container');
+    const loading = document.getElementById('loading');
+    const template = document.getElementById('article-template');
+    
+    // Show loading spinner
+    container.innerHTML = '';
+    loading.style.display = 'block';
+    
+    console.log(`Loading news for category: ${category}`);
+    
+    // Fetch news for the selected category
+    fetch(`/api/news/${category}`)
+        .then(response => {
+            console.log('Response status:', response.status);
+            return response.json().then(data => ({status: response.status, data}));
+        })
+        .then(({status, data}) => {
+            console.log('Response data:', data);
+            container.innerHTML = '';
+            
+            if (data.articles && data.articles.length > 0) {
+                data.articles.forEach(article => {
+                    const clone = template.content.cloneNode(true);
+                    
+                    // Set article image
+                    const img = clone.querySelector('.article-image');
+                    img.src = article.urlToImage || '/static/images/default-news.jpg';
+                    img.alt = article.title;
+                    
+                    // Set other article details
+                    clone.querySelector('.article-title').textContent = article.title;
+                    clone.querySelector('.article-description').textContent = article.description;
+                    clone.querySelector('.article-source').textContent = 
+                        `${article.source.name} • ${new Date(article.publishedAt).toLocaleDateString()}`;
+                    
+                    // Update the link to use the correct URL format
+                    const link = clone.querySelector('.article-link');
+                    link.href = `/news/${category}/${article.slug}`;
+                    link.target = '_self'; // Open in same window
+                    
+                    container.appendChild(clone);
+                });
+            } else {
+                container.innerHTML = `<div class="col-12 text-center"><p>No articles found for category: ${category}</p></div>`;
+            }
+            
+            loading.style.display = 'none';
+        })
+        .catch(error => {
+            console.error('Error loading news:', error);
+            container.innerHTML = `<div class="col-12 text-center"><p>Error loading articles for category: ${category}. Please try again later.</p><p>Error: ${error.message}</p></div>`;
+            loading.style.display = 'none';
+        });
+}
+
+// Initialize with first category
+document.addEventListener('DOMContentLoaded', function() {
+    const firstCategory = document.querySelector('.category-btn').dataset.category;
+    loadNews(firstCategory);
+    
+    // Add click handlers for category buttons
+    document.querySelectorAll('.category-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            // Update active state
+            document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Load news for selected category
+            loadNews(this.dataset.category);
+        });
+    });
+});
+</script>
+{% endblock %}

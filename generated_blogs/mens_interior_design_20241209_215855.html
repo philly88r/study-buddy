@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+    <link rel="stylesheet" href="../templates/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body>
+    <!-- Hero Section -->
+    <div class="hero" style="background-image: url('{{header_image}}')">
+        <div class="hero-content">
+            <h1>{{title}}</h1>
+            <p class="hero-subtitle">{{subtitle}}</p>
+        </div>
+    </div>
+
+    <!-- Author Bio -->
+    <div class="author-bio">
+        <img src="{{author_image}}" alt="Author" class="author-image">
+        <div class="author-info">
+            <h3>About the Author</h3>
+            {{author_bio}}
+        </div>
+    </div>
+
+    <!-- Table of Contents -->
+    <div class="content-section" x-data="{ open: true }">
+        <div class="toc-header" @click="open = !open">
+            <h3><i class="fas fa-list"></i> Table of Contents</h3>
+            <i class="fas" :class="open ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        </div>
+        <div x-show="open" x-transition>
+            <ul class="toc-list">
+                {{toc}}
+            </ul>
+        </div>
+    </div>
+
+    <!-- Introduction -->
+    <div class="content-section">
+        <h2>Introduction</h2>
+        {{introduction}}
+    </div>
+
+    <!-- Main Content -->
+    {{content}}
+
+    <!-- Social Sharing -->
+    <div class="social-share">
+        <h3>Share this article</h3>
+        <div class="share-buttons">
+            <a href="https://twitter.com/share?url={{url}}&text={{title}}" class="twitter-share">
+                <i class="fab fa-twitter"></i> Tweet
+            </a>
+            <a href="https://www.linkedin.com/shareArticle?url={{url}}&title={{title}}" class="linkedin-share">
+                <i class="fab fa-linkedin"></i> Share
+            </a>
+            <a href="https://www.facebook.com/sharer/sharer.php?u={{url}}" class="facebook-share">
+                <i class="fab fa-facebook"></i> Share
+            </a>
+        </div>
+    </div>
+
+    <!-- Newsletter Signup -->
+    <div class="content-section newsletter-signup" x-data="{ email: '' }">
+        <h3>Stay Updated</h3>
+        <p>Get the latest insights delivered to your inbox</p>
+        <form @submit.prevent="submitNewsletter">
+            <input type="email" x-model="email" placeholder="Enter your email">
+            <button type="submit" class="cta-button">Subscribe</button>
+        </form>
+    </div>
+
+    <!-- Related Articles -->
+    <div class="content-section related-articles">
+        <h3>Related Articles</h3>
+        <div class="article-grid">
+            {{related_articles}}
+        </div>
+    </div>
+
+    <footer>
+        <p>© {{current_year}} Your Blog Name. All rights reserved.</p>
+    </footer>
+
+    <script>
+        // Progressive enhancement JavaScript
+        document.addEventListener('DOMContentLoaded', function() {
+            // Smooth scroll for anchor links
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    document.querySelector(this.getAttribute('href')).scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                });
+            });
+
+            // Lazy load images
+            const images = document.querySelectorAll('img[data-src]');
+            const imageObserver = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const img = entry.target;
+                        img.src = img.dataset.src;
+                        img.removeAttribute('data-src');
+                        observer.unobserve(img);
+                    }
+                });
+            });
+
+            images.forEach(img => imageObserver.observe(img));
+        });
+
+        // Newsletter signup handler
+        function submitNewsletter() {
+            // Add your newsletter signup logic here
+            console.log('Newsletter signup:', this.email);
+            alert('Thank you for subscribing!');
+            this.email = '';
+        }
+    </script>
+</body>
+</html>

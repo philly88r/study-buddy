@@ -15,8 +15,22 @@ import hashlib
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from slugify import slugify
-from datetime import timedelta
+from datetime import datetime, timedelta
+from cachetools import TTLCache
 from flask_session import Session
+from pyngrok import ngrok, conf
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from functools import wraps
+
+# Constants
+NEWS_CATEGORIES = [
+    'study-tips',
+    'productivity',
+    'mental-health',
+    'student-life',
+    'technology',
+    'career-advice'
+]
 
 # Set console encoding to UTF-8
 if sys.stdout.encoding != 'utf-8':
@@ -35,15 +49,24 @@ CORS(app)
 # Configure secret key for session
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-here')  # Make sure to set a strong secret key in production
 
-# Session configuration
+# Configure session
 app.config['SESSION_TYPE'] = 'filesystem'
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Sessions last for 7 days
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=31)  # Sessions last for 31 days
 app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 # Initialize Flask-Session
 Session(app)
+
+# Initialize Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 # Database configuration
 database_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'studybuddy.db')
@@ -52,38 +75,29 @@ print(f"Using database: {database_url}")
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ECHO'] = True  # This will log all SQL queries
 
-# Initialize database
-db = SQLAlchemy(app)
+# Initialize extensions
+from extensions import db
+db.init_app(app)
 
-# User model
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128))
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
-
-# BlogPost model
-class BlogPost(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(120), nullable=False)
-    slug = db.Column(db.String(120), unique=True, nullable=False)
-    introduction = db.Column(db.Text, nullable=False)
-    content = db.Column(db.Text, nullable=False)
-    toc = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())
-    updated_at = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+# Import models
+from models import User, BlogPost, NewsArticle
 
 # Create database tables
 with app.app_context():
     db.create_all()
     print("Database tables created")
+
+# Protected routes decorator
+def auth_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            flash('Please log in to access this feature.', 'warning')
+            return redirect(url_for('login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
 
 # Login required decorator
 def login_required(f):
@@ -94,6 +108,206 @@ def login_required(f):
         return f(*args, **kwargs)
     decorated_function.__name__ = f.__name__
     return decorated_function
+
+# Initialize cache for news articles (cache for 30 minutes)
+news_cache = TTLCache(maxsize=100, ttl=1800)
+NEWSAPI_KEY = os.getenv('NEWSAPI_KEY', '')  # Add this to your .env file
+
+# News categories for education
+NEWS_CATEGORIES_EDUCATION = [
+    'study-tips',           # Study techniques, time management, and productivity tips
+    'learning-tools',       # Educational software, apps, and AI tools for students
+    'elementary-ed',        # Elementary school education news and resources
+    'middle-school',        # Middle school education news and resources
+    'high-school',          # High school education news and resources
+    'college-prep',         # College preparation, SAT/ACT tips, application advice
+    'college-life',         # College life, campus news, and university resources
+    'stem-education',       # Science, Technology, Engineering, and Mathematics education
+    'arts-humanities',      # Arts and Humanities education
+    'special-education',    # Special education resources and news
+    'homework-help',        # Homework assistance and tutoring resources
+    'test-prep',           # Test preparation strategies and resources
+    'parent-resources',     # Resources for parents to help their children
+    'education-tech',       # Educational technology and digital learning
+    'student-wellness'      # Mental health, stress management, and student well-being
+]
+
+# News routes
+@app.route('/api/submit_articles', methods=['POST'])
+def submit_articles():
+    try:
+        print("\n=== Submitting Articles ===")
+        print("Request Method:", request.method)
+        print("Request URL:", request.url)
+        print("Request Headers:", dict(request.headers))
+        print("Request Content-Type:", request.content_type)
+        print("Request Data:", request.get_data(as_text=True))
+        
+        data = request.get_json()
+        print("Parsed JSON Data:", data)
+        print(f"Received {len(data)} articles")
+        
+        if not data or not isinstance(data, list):
+            print("Error: Invalid data format")
+            return jsonify({'error': 'Invalid data format. Expected a list of articles.'}), 400
+
+        submitted_articles = []
+        errors = []
+
+        for i, article in enumerate(data):
+            try:
+                print(f"\nProcessing article {i+1}:")
+                print(f"Title: {article.get('title', 'No title')}")
+                print(f"Category: {article.get('category', 'No category')}")
+                print(f"Article Data: {json.dumps(article, indent=2)}")
+                
+                # Validate required fields
+                required_fields = ['title', 'description', 'content', 'category', 'image_url', 'source_url']
+                missing_fields = [field for field in required_fields if field not in article]
+                if missing_fields:
+                    error_msg = f'Missing required fields: {missing_fields}'
+                    print(f"Error: {error_msg}")
+                    errors.append({
+                        'title': article.get('title', 'Unknown'),
+                        'error': error_msg
+                    })
+                    continue
+
+                # Create base slug from title if not provided
+                if not article.get('slug'):
+                    base_slug = slugify(article['title'])
+                    slug = base_slug
+                    counter = 1
+
+                    # Handle duplicate slugs by appending a number
+                    while NewsArticle.query.filter_by(slug=slug).first():
+                        slug = f"{base_slug}-{counter}"
+                        counter += 1
+                else:
+                    slug = article['slug']
+                print(f"Using slug: {slug}")
+
+                # Format category to match our standard format
+                category = article['category'].lower().replace(' ', '-')
+                print(f"Formatted category: {category}")
+
+                # Create new article
+                try:
+                    new_article = NewsArticle(
+                        title=article['title'],
+                        description=article['description'],
+                        content=article['content'],
+                        category=category,
+                        image_url=article['image_url'],
+                        source_url=article.get('source_url', f"/news/{category}/{slug}"),
+                        meta_title=article.get('meta_title', article['title'][:60]),
+                        meta_description=article.get('meta_description', article['description'][:160]),
+                        meta_keywords=article.get('meta_keywords', f"study buddy, {category}, education"),
+                        slug=slug,
+                        og_title=article.get('og_title', article['title'][:60]),
+                        og_description=article.get('og_description', article['description'][:200])
+                    )
+                    print("Created NewsArticle object:", new_article)
+                    db.session.add(new_article)
+                    print("Article added to session")
+                    
+                    submitted_articles.append({
+                        'title': article['title'],
+                        'slug': slug,
+                        'category': category
+                    })
+                except Exception as article_error:
+                    print(f"Error creating article: {str(article_error)}")
+                    raise article_error
+
+            except Exception as e:
+                print(f"Error processing article: {str(e)}")
+                errors.append({
+                    'title': article.get('title', 'Unknown'),
+                    'error': str(e)
+                })
+
+        if submitted_articles:
+            try:
+                print("\nCommitting changes to database...")
+                db.session.commit()
+                print("Changes committed successfully")
+            except Exception as commit_error:
+                print(f"Error during commit: {str(commit_error)}")
+                db.session.rollback()
+                raise commit_error
+
+        response = {
+            'submitted': submitted_articles,
+            'errors': errors
+        }
+        print("\nFinal response:", response)
+
+        if errors and not submitted_articles:
+            return jsonify(response), 400
+        elif errors:
+            return jsonify(response), 207  # Partial success
+        else:
+            return jsonify(response), 201
+
+    except Exception as e:
+        print(f"\nError in submit_articles: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/news/<category>')
+def get_news(category):
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+    
+    # Get articles for the category with pagination
+    pagination = NewsArticle.query.filter_by(category=category)\
+        .order_by(NewsArticle.created_at.desc())\
+        .paginate(page=page, per_page=per_page, error_out=False)
+    
+    articles = pagination.items
+    
+    return jsonify({
+        'articles': [{
+            'title': article.title,
+            'description': article.description,
+            'content': article.content,
+            'urlToImage': article.image_url,
+            'url': article.source_url,
+            'source': {'name': 'Study Buddy'},
+            'publishedAt': article.created_at.isoformat(),
+            'slug': article.slug
+        } for article in articles],
+        'pagination': {
+            'total': pagination.total,
+            'pages': pagination.pages,
+            'current': pagination.page,
+            'has_next': pagination.has_next,
+            'has_prev': pagination.has_prev
+        }
+    })
+
+@app.route('/news')
+def news_page():
+    return render_template('news.html', current_user=current_user, categories=NEWS_CATEGORIES_EDUCATION)
+
+@app.route('/news/<category>')
+def news_category(category):
+    return render_template('news.html', current_user=current_user, categories=NEWS_CATEGORIES_EDUCATION)
+
+@app.route('/news/<category>/<slug>')
+def view_article(category, slug):
+    try:
+        # Query article from database
+        article = NewsArticle.query\
+            .filter_by(category=category, slug=slug)\
+            .first_or_404()
+        
+        return render_template('article.html', article=article)
+            
+    except Exception as e:
+        flash('Article not found', 'error')
+        return redirect(url_for('news_page'))
 
 # Authentication routes
 @app.route('/signup', methods=['GET', 'POST'])
@@ -132,87 +346,56 @@ def signup():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    print("\n=== Login Route ===")
-    print(f"Method: {request.method}")
-    
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        
-        print(f"Login attempt - Username: {username}")
-        print(f"Form data: {request.form}")
-        
         user = User.query.filter_by(username=username).first()
-        print(f"User found: {user is not None}")
         
-        if user:
-            password_check = user.check_password(password)
-            print(f"Password check result: {password_check}")
-            
-            if password_check:
-                # Make the session permanent
-                session.permanent = True
-                
-                # Store user info in session
-                session['user_id'] = user.id
-                session['username'] = user.username
-                session['logged_in'] = True
-                
-                print(f"Login successful for user {username}")
-                print(f"Session data: {session}")
-                flash('Logged in successfully!')
-                return redirect(url_for('index'))
-            else:
-                print(f"Password check failed for user {username}")
-        
-        print(f"Login failed for user {username}")
-        flash('Invalid username or password')
-        return redirect(url_for('login'))
+        if user and user.check_password(password):
+            login_user(user, remember=True)  # Enable "remember me" functionality
+            session.permanent = True  # Make the session permanent
+            flash('Logged in successfully.', 'success')
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('index'))
+        else:
+            flash('Invalid username or password', 'error')
     
     return render_template('login.html')
 
 @app.route('/logout')
+@login_required
 def logout():
-    # Remove specific session keys
-    session.pop('user_id', None)
-    session.pop('username', None)
-    session.pop('logged_in', None)
-    
-    # Clear the entire session
-    session.clear()
-    
-    flash('You have been logged out.')
+    logout_user()
+    flash('Logged out successfully.', 'success')
     return redirect(url_for('login'))
 
 # Protected routes
 @app.route('/')
 def index():
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
-    return render_template('index.html')
+    return render_template('landing.html')
 
 @app.route('/flashcards')
-@login_required
+@auth_required
 def flashcards():
     return render_template('flashcards.html')
 
 @app.route('/practice_by_topic')
-@login_required
+@auth_required
 def practice_by_topic():
     return render_template('practice_by_topic.html')
 
 @app.route('/practice_by_upload')
-@login_required
+@auth_required
 def practice_by_upload():
-    return render_template('upload_practice_test.html')
+    return render_template('practice_by_upload.html')
 
 @app.route('/homework_checker')
-@login_required
+@auth_required
 def homework_checker():
     return render_template('homework_checker.html')
 
 @app.route('/homework_generator')
-@login_required
+@auth_required
 def homework_generator():
     return render_template('homework_generator.html')
 
@@ -772,11 +955,39 @@ def get_homework_help():
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a step-by-step solution provider. Provide detailed steps to solve the given problem."
+                    "content": """You are a friendly, encouraging teacher helping young students with their homework. Use simple language, be enthusiastic, and make learning fun! Format your response like this:
+
+Hi there! 👋 Ready to learn something cool?
+
+What We're Learning Today: 
+🌟 [Explain the topic in super simple, fun terms]
+🌟 [Any helpful tricks to remember]
+
+Let's Solve It Together!
+Step 1: [First easy step with fun explanation]
+   💡 Cool Tip: [Simple hint or trick]
+
+Step 2: [Next step]
+   💡 Remember: [Easy way to remember this part]
+
+Step 3: [Keep going with more steps if needed]
+   💫 You're doing great!
+
+The Answer Is: [Simple, clear answer]
+
+Let's Check What We Learned:
+✨ Did you know? [Fun fact about this type of problem]
+✨ Watch out for: [Common mistake explained in a friendly way]
+
+Want to Practice More?
+🎮 Try this fun way to remember: [Simple memory trick or game]
+
+You're Amazing! Keep Going! 🌟
+Remember: Making mistakes is how we learn and grow! 🌱"""
                 },
                 {
                     "role": "user",
-                    "content": f"Provide a step-by-step solution for this problem: {question}"
+                    "content": f"Help a young student solve this problem (use simple, encouraging language): {question}"
                 }
             ],
             "max_tokens": 2048
@@ -784,12 +995,11 @@ def get_homework_help():
         response = make_openai_request('chat/completions', payload)
         
         steps = response['choices'][0]['message']['content']
-        print(f"Steps for Question {question_number}:", steps)  # Debug print
         return jsonify({'steps': steps})
 
     except Exception as e:
         print(f"Error generating help for question {question_number}: {str(e)}")
-        traceback.print_exc()  # Print full traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 # Blog API endpoints
@@ -953,4 +1163,5 @@ def delete_blog(blog_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Start the Flask server
+    app.run(host='0.0.0.0', port=5000, debug=True)

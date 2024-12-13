@@ -1,9 +1,7 @@
-from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-
-db = SQLAlchemy()
+from extensions import db
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -36,5 +34,22 @@ class BlogPost(db.Model):
     introduction = db.Column(db.Text, nullable=False)
     content = db.Column(db.Text, nullable=False)
     toc = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class NewsArticle(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    content = db.Column(db.Text)
+    category = db.Column(db.String(50))
+    image_url = db.Column(db.String(500))
+    source_url = db.Column(db.String(500))
+    meta_title = db.Column(db.String(60))
+    meta_description = db.Column(db.String(160))
+    meta_keywords = db.Column(db.String(200))
+    slug = db.Column(db.String(200), unique=True)
+    og_title = db.Column(db.String(60))
+    og_description = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

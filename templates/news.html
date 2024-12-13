@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Educational News & Resources</h1>
+    
+    <!-- Category Navigation -->
+    <div class="mb-4">
+        <div class="category-grid">
+            {% for category in categories %}
+            <button type="button" class="btn btn-outline-primary category-btn {% if loop.first %}active{% endif %}" 
+                    data-category="{{ category }}">
+                {{ category | replace('-', ' ') | title }}
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- News Articles Container -->
+    <div id="news-container" class="row">
+        <!-- Articles will be loaded here -->
+        <div class="col-12 text-center" id="loading">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div id="pagination-controls" class="row mt-4 mb-4 justify-content-center" style="display: none;">
+        <div class="col-auto">
+            <nav aria-label="Page navigation">
+                <ul class="pagination">
+                    <li class="page-item" id="prev-page">
+                        <a class="page-link" href="#" aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <span class="page-link" id="page-info">Page 1 of 1</span>
+                    </li>
+                    <li class="page-item" id="next-page">
+                        <a class="page-link" href="#" aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<!-- Article Template -->
+<template id="article-template">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <img src="" class="card-img-top article-image" alt="News Image">
+            <div class="card-body">
+                <h5 class="card-title article-title"></h5>
+                <p class="card-text article-description"></p>
+                <p class="card-text"><small class="text-muted article-source"></small></p>
+                <a href="" class="btn btn-primary article-link" target="_blank">Read More</a>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Custom CSS -->
+<style>
+.card-img-top {
+    height: 200px;
+    object-fit: cover;
+}
+
+.category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.category-btn {
+    width: 100%;
+    text-align: center;
+    padding: 10px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.category-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.category-btn.active {
+    background-color: #0d6efd;
+    color: white;
+    border-color: #0d6efd;
+}
+
+.page-link {
+    cursor: pointer;
+}
+
+.page-item.disabled .page-link {
+    cursor: not-allowed;
+}
+</style>
+
+<!-- JavaScript for loading news -->
+<script>
+let currentPage = 1;
+let currentCategory = '';
+
+function loadNews(category, page = 1) {
+    const container = document.getElementById('news-container');
+    const loading = document.getElementById('loading');
+    const template = document.getElementById('article-template');
+    const paginationControls = document.getElementById('pagination-controls');
+    
+    // Show loading spinner
+    container.innerHTML = '';
+    loading.style.display = 'block';
+    paginationControls.style.display = 'none';
+    
+    currentCategory = category;
+    currentPage = page;
+    
+    console.log(`Loading news for category: ${category}, page: ${page}`);
+    
+    // Fetch news for the selected category and page
+    fetch(`/api/news/${category}?page=${page}`)
+        .then(response => {
+            console.log('Response status:', response.status);
+            return response.json().then(data => ({status: response.status, data}));
+        })
+        .then(({status, data}) => {
+            console.log('Response data:', data);
+            container.innerHTML = '';
+            
+            if (data.articles && data.articles.length > 0) {
+                data.articles.forEach(article => {
+                    const clone = template.content.cloneNode(true);
+                    
+                    // Set article image
+                    const img = clone.querySelector('.article-image');
+                    img.src = article.urlToImage || '/static/images/default-news.jpg';
+                    img.alt = article.title;
+                    
+                    // Set other article details
+                    clone.querySelector('.article-title').textContent = article.title;
+                    clone.querySelector('.article-description').textContent = article.description;
+                    
+                    // Format the date
+                    const date = new Date(article.publishedAt);
+                    const formattedDate = date.toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                    });
+                    
+                    clone.querySelector('.article-source').textContent = 
+                        `${article.source.name} • ${formattedDate}`;
+                    
+                    // Update the link to use the correct URL format
+                    const link = clone.querySelector('.article-link');
+                    link.href = `/news/${category}/${article.slug}`;
+                    link.target = '_self';
+                    
+                    container.appendChild(clone);
+                });
+                
+                // Update pagination controls
+                const pageInfo = document.getElementById('page-info');
+                const prevPage = document.getElementById('prev-page');
+                const nextPage = document.getElementById('next-page');
+                
+                pageInfo.textContent = `Page ${data.pagination.current} of ${data.pagination.pages}`;
+                
+                prevPage.classList.toggle('disabled', !data.pagination.has_prev);
+                nextPage.classList.toggle('disabled', !data.pagination.has_next);
+                
+                paginationControls.style.display = 'flex';
+            } else {
+                container.innerHTML = `<div class="col-12 text-center"><p>No articles found for category: ${category}</p></div>`;
+            }
+            
+            loading.style.display = 'none';
+        })
+        .catch(error => {
+            console.error('Error loading news:', error);
+            container.innerHTML = `<div class="col-12 text-center"><p>Error loading articles for category: ${category}. Please try again later.</p><p>Error: ${error.message}</p></div>`;
+            loading.style.display = 'none';
+        });
+}
+
+// Initialize with first category
+document.addEventListener('DOMContentLoaded', function() {
+    const firstCategory = document.querySelector('.category-btn').dataset.category;
+    loadNews(firstCategory);
+    
+    // Add click handlers for category buttons
+    document.querySelectorAll('.category-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            // Update active state
+            document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Load first page of new category
+            loadNews(this.dataset.category, 1);
+        });
+    });
+    
+    // Add click handlers for pagination
+    document.getElementById('prev-page').addEventListener('click', function(e) {
+        e.preventDefault();
+        if (!this.classList.contains('disabled')) {
+            loadNews(currentCategory, currentPage - 1);
+        }
+    });
+    
+    document.getElementById('next-page').addEventListener('click', function(e) {
+        e.preventDefault();
+        if (!this.classList.contains('disabled')) {
+            loadNews(currentCategory, currentPage + 1);
+        }
+    });
+});
+</script>
+{% endblock %}

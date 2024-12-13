@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('news_page') }}">News</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('news_page') }}#{{ article.category }}">{{ article.category | replace('-', ' ') | title }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ article.title }}</li>
+        </ol>
+    </nav>
+
+    <article class="my-4">
+        <header class="mb-4">
+            <h1 class="display-4">{{ article.title }}</h1>
+            <p class="lead text-muted">{{ article.description }}</p>
+            <div class="mb-3">
+                <small class="text-muted">Published on {{ article.created_at.strftime('%B %d, %Y') }}</small>
+            </div>
+        </header>
+
+        {% if article.image_url %}
+        <div class="mb-4">
+            <img src="{{ article.image_url }}" class="img-fluid rounded" alt="{{ article.title }}">
+        </div>
+        {% endif %}
+
+        <div class="article-content">
+            {{ article.content | safe }}
+        </div>
+    </article>
+
+    <div class="mt-4">
+        <a href="{{ url_for('news_page') }}" class="btn btn-outline-primary">&larr; Back to News</a>
+    </div>
+</div>
+
+<!-- Custom CSS -->
+<style>
+.article-content {
+    font-size: 1.1rem;
+    line-height: 1.7;
+}
+
+.article-content h2 {
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    font-size: 1.8rem;
+}
+
+.article-content p {
+    margin-bottom: 1.5rem;
+}
+
+.article-content ul, .article-content ol {
+    margin-bottom: 1.5rem;
+    padding-left: 2rem;
+}
+</style>
+{% endblock %}

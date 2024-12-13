@@ -2,7 +2,7 @@ import sqlite3
 import os
 
 def check_database():
-    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'app.db')
+    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'studybuddy.db')
     print(f"Checking database at: {db_path}")
     
     if not os.path.exists(db_path):
@@ -23,17 +23,17 @@ def check_database():
         for col in columns:
             print(f"  - {col[1]} ({col[2]})")
             
-    # Check blog posts
-    cursor.execute("SELECT COUNT(*) FROM blog_post;")
+    # Check news articles
+    cursor.execute("SELECT COUNT(*) FROM news_article;")
     count = cursor.fetchone()[0]
-    print(f"\nNumber of blog posts: {count}")
+    print(f"\nNumber of news articles: {count}")
     
     if count > 0:
-        cursor.execute("SELECT title, slug FROM blog_post;")
-        posts = cursor.fetchall()
-        print("\nBlog posts:")
-        for post in posts:
-            print(f"  - {post[0]} (slug: {post[1]})")
+        cursor.execute("SELECT id, title, category FROM news_article;")
+        articles = cursor.fetchall()
+        print("\nNews articles:")
+        for article in articles:
+            print(f"  - [{article[0]}] {article[1]} (category: {article[2]})")
     
     conn.close()
 
